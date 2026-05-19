@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Backgrounds */
+  --color-bg-page: #F2F2F2;
+  --color-bg-card: #FFFFFF;
+  --color-bg-card-hover: #FAFAFA;
+
+  /* Gradient accent */
+  --color-accent-pink: #3B82F6;
+  --color-accent-purple: #6366F1;
+  --color-accent-violet: #4F46E5;
+
+  /* Text */
+  --color-text-primary: #1A1A2E;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
+
+  /* Platform colors */
+  --color-youtube: #FF0000;
+  --color-youtube-bg: #FEF2F2;
+  --color-youtube-border: #FECACA;
+  --color-tiktok: #010101;
+  --color-tiktok-bg: #F0FDF4;
+  --color-tiktok-border: #BBF7D0;
+  --color-tiktok-accent: #25F4EE;
+
+  /* Status */
+  --color-success: #10B981;
+  --color-error: #EF4444;
+  --color-error-bg: #FEF2F2;
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FFFBEB;
+
+  /* Trend colors */
+  --color-trend-up: #22C55E;
+  --color-trend-down: #EF4444;
+  --color-trend-neutral: #6B7280;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.06);
+
+  /* Border radius */
+  --radius-card: 20px;
+  --radius-button: 14px;
+  --radius-pill: 100px;
+  --radius-input: 12px;
+  --radius-video: 14px;
+}
+
+@layer base {
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  }
+}
+
+/* Dark mode variable overrides */
+html.dark {
+  --color-bg-page: #0f0f14;
+  --color-bg-card: #1a1a24;
+  --color-bg-card-hover: #22222e;
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #a0a0b0;
+  --color-text-muted: #6b6b80;
+  --color-youtube: #FF4444;
+  --color-youtube-bg: #2a1a1a;
+  --color-youtube-border: #4a2a2a;
+  --color-tiktok: #25F4EE;
+  --color-tiktok-bg: #0f2a2e;
+  --color-tiktok-border: #1a4a50;
+  --color-tiktok-accent: #25F4EE;
+  --color-error-bg: #2a1a1a;
+  --color-warning-bg: #2a2510;
+  --color-trend-up: #4ADE80;
+  --color-trend-down: #F87171;
+  --color-trend-neutral: #9CA3AF;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Global styles */
+body {
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: color 200ms ease, background-color 200ms ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #3a3a4a;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a;
+}
+
+/* Sparkline draw animation */
+@keyframes sparkline-draw {
+  from { stroke-dashoffset: var(--sparkline-length, 1000); }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Sparkline data collection pulse */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Skeleton animation */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.animate-skeleton {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-accent-pink), var(--color-accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card glass effect */
+.card-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html.dark .card-glass {
+  background: #1a1a24;
+}
+
+@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
+  html.dark .card-glass {
+    background: rgba(26, 26, 36, 0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
