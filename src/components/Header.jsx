@@ -11,6 +11,7 @@ export default function Header({
   isRefreshing,
   onManualRefresh,
   tiktokCooldownMinutes,
+  isBackendAvailable,
 }) {
   return (
     <header className="mb-8">
@@ -37,6 +38,7 @@ export default function Header({
             isRefreshing={isRefreshing}
             onManualRefresh={onManualRefresh}
             tiktokCooldownMinutes={tiktokCooldownMinutes}
+            isBackendAvailable={isBackendAvailable}
           />
 
           <ApiUsageCounter />

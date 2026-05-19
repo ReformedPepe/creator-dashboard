@@ -1,12 +1,16 @@
 // Hook do pobierania danych dla kanału (YouTube lub TikTok)
+// Gdy backend jest dostępny, pobiera dane z backendu zamiast bezpośrednio z API
 import { useState, useCallback } from 'react';
+import axios from 'axios';
 import { fetchYouTubeVideos } from '../utils/youtube';
 import { fetchTikTokVideos, fetchTikTokVideoByUrl } from '../utils/tiktok';
 import { loadChannelData, saveChannelData } from '../utils/storage';
 import { canRefreshTikTok, markTikTokRefreshed } from '../utils/rateLimiter';
 import { saveSnapshots } from '../utils/viewHistory';
 
-export function useChannelData(channel) {
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+export function useChannelData(channel, { isBackendAvailable = false } = {}) {
   const [videos, setVideos] = useState(() => {
     const cached = loadChannelData(channel?.id);
     return cached?.videos || null;
@@ -25,6 +29,57 @@ export function useChannelData(channel) {
   const fetchData = useCallback(async () => {
     if (!channel) return;
 
+    // Backend path: fetch from /api/channels/:id/videos
+    if (isBackendAvailable && channel.id) {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/channels/${channel.id}/videos`);
+        const backendVideos = res.data;
+
+        // Map backend format to frontend Unified_Video_Format
+        const mappedVideos = backendVideos.map(v => ({
+          id: v.video_id,
+          title: v.title || 'Bez tytułu',
+          thumbnail: v.thumbnail || '',
+          viewCount: v.snapshots?.length > 0
+            ? v.snapshots[v.snapshots.length - 1].view_count
+            : 0,
+          likeCount: v.like_count || 0,
+          commentCount: v.comment_count || 0,
+          publishedAt: v.published_at || new Date().toISOString(),
+          url: '',
+          // Pass raw snapshots for sparkline (already ordered ASC by timestamp)
+          _backendSnapshots: v.snapshots || [],
+        }));
+
+        setVideos(mappedVideos);
+        setChannelStats(null); // Backend doesn't provide channel stats yet
+        setLastFetchedAt(Date.now());
+        saveChannelData(channel.id, { videos: mappedVideos, channelStats: null });
+
+        // Save snapshots for sparkline from backend data
+        if (backendVideos.length > 0) {
+          for (const v of backendVideos) {
+            if (v.snapshots && v.snapshots.length > 0) {
+              const latestSnapshot = v.snapshots[v.snapshots.length - 1];
+              saveSnapshots([{
+                id: v.video_id,
+                viewCount: latestSnapshot.view_count,
+              }]);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[useChannelData] Backend fetch failed for "${channel.name}":`, err.message);
+        setError(err.message || 'Błąd pobierania z backendu');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Fallback: direct API path (original logic)
     // TikTok rate limit check — if cooldown is active, skip fetch silently and keep cached data
     if (channel.type === 'tiktok' && !canRefreshTikTok()) {
       setLoading(false);
@@ -80,7 +135,7 @@ export function useChannelData(channel) {
     } finally {
       setLoading(false);
     }
-  }, [channel]);
+  }, [channel, isBackendAvailable]);
 
   return {
     videos,

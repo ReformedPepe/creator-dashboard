@@ -14,8 +14,8 @@ const TIME_RANGES = [
   { label: 'Wszystko', ms: Infinity },
 ];
 
-export default function ChannelCard({ channel, onEdit, refreshTrigger }) {
-  const { videos, channelStats, loading, error, lastFetchedAt, fetchData } = useChannelData(channel);
+export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackendAvailable }) {
+  const { videos, channelStats, loading, error, lastFetchedAt, fetchData } = useChannelData(channel, { isBackendAvailable });
   const [timeRangeMs, setTimeRangeMs] = useState(24 * 60 * 60 * 1000); // default 24h
 
   useEffect(() => {

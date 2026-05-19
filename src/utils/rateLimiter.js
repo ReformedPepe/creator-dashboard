@@ -1,10 +1,10 @@
-// TikTok rate limiter — max one fetch per 60 minutes, persisted in localStorage
+// TikTok rate limiter — max one fetch per 6 hours, persisted in localStorage
 
 const TIKTOK_LAST_REFRESH_KEY = 'creator-dashboard-tiktok-last-refresh';
-const COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
+const COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours (360 minutes)
 
 /**
- * Returns true if 60+ minutes have passed since the last TikTok fetch,
+ * Returns true if 6+ hours have passed since the last TikTok fetch,
  * or if no valid timestamp exists in localStorage.
  * Invalid/corrupted values also return true (allow fetch).
  */

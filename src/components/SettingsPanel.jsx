@@ -10,7 +10,7 @@ import {
   validateTikTokKey,
 } from '../utils/apiKeys';
 
-export default function SettingsPanel({ isOpen, onClose }) {
+export default function SettingsPanel({ isOpen, onClose, onKeysSaved }) {
   const [youtubeKey, setYoutubeKey] = useState('');
   const [tiktokKey, setTiktokKey] = useState('');
   const [showYoutubeKey, setShowYoutubeKey] = useState(false);
@@ -97,6 +97,11 @@ export default function SettingsPanel({ isOpen, onClose }) {
             setTiktokError(result.error || 'Klucz jest nieprawidłowy.');
           }
         }
+      }
+
+      // Sync keys to backend if callback provided
+      if (onKeysSaved) {
+        onKeysSaved();
       }
     } catch (err) {
       console.error('Błąd walidacji kluczy:', err);

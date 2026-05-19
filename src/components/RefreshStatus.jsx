@@ -8,6 +8,7 @@ export default function RefreshStatus({
   isRefreshing,
   onManualRefresh,
   tiktokCooldownMinutes,
+  isBackendAvailable,
 }) {
   const [elapsedText, setElapsedText] = useState(() => formatElapsedTime(lastRefreshAt));
 
@@ -29,10 +30,10 @@ export default function RefreshStatus({
         <span>Ostatnio: {elapsedText}</span>
       </div>
 
-      {/* TikTok cooldown message */}
-      {tiktokCooldownMinutes > 0 && (
+      {/* TikTok cooldown message — hidden when backend manages the schedule */}
+      {!isBackendAvailable && tiktokCooldownMinutes > 0 && (
         <div className="flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-bg-card px-3 py-1.5 text-xs text-text-secondary shadow-[var(--shadow-card)]">
-          <span>TikTok: odśwież za {tiktokCooldownMinutes} min</span>
+          <span>TikTok: odśwież za {tiktokCooldownMinutes >= 60 ? `${Math.ceil(tiktokCooldownMinutes / 60)}h` : `${tiktokCooldownMinutes} min`}</span>
         </div>
       )}
 

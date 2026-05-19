@@ -1,24 +1,30 @@
 import { useState, useCallback } from 'react';
-import { Play, Music } from 'lucide-react';
+import { Play, Music, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
 import Layout from './components/Layout';
 import Header from './components/Header';
 import EmptyState from './components/EmptyState';
 import ChannelManager from './components/ChannelManager';
 import ChannelCard from './components/ChannelCard';
 import SettingsPanel from './components/SettingsPanel';
-import { useChannels } from './hooks/useChannels';
+import { useBackend } from './hooks/useBackend';
 import { loadLastRefresh, saveLastRefresh } from './utils/storage';
 import { getTikTokCooldownMinutes } from './utils/rateLimiter';
 
 export default function App() {
   const {
+    isBackendAvailable,
+    isChecking,
     channels,
-    youtubeChannels,
-    tiktokChannels,
+    fetchChannels,
     addChannel,
-    updateChannel,
-    removeChannel,
-  } = useChannels();
+    deleteChannel,
+    refresh: backendRefresh,
+    syncApiKeys,
+    checkHealth,
+  } = useBackend();
+
+  const youtubeChannels = channels.filter(ch => ch.type === 'youtube');
+  const tiktokChannels = channels.filter(ch => ch.type === 'tiktok');
 
   const [managerOpen, setManagerOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState(null);
@@ -30,18 +36,17 @@ export default function App() {
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    setRefreshTrigger(prev => prev + 1);
-
-    // Give ChannelCards time to trigger their fetches
-    // Use a short delay to allow re-renders to propagate
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
+    try {
+      await backendRefresh('youtube');
+      await fetchChannels();
+    } catch (err) {
+      console.error('Backend refresh failed:', err);
+    }
     const now = Date.now();
     saveLastRefresh(now);
     setLastRefreshAt(now);
-    setTiktokCooldownMinutes(getTikTokCooldownMinutes());
     setIsRefreshing(false);
-  }, []);
+  }, [backendRefresh, fetchChannels]);
 
   const openAddModal = () => {
     setEditingChannel(null);
@@ -55,11 +60,49 @@ export default function App() {
 
   const handleSave = (data) => {
     if (data.id) {
-      updateChannel(data.id, data);
+      // Edit not supported via backend yet — skip
     } else {
       addChannel(data);
     }
   };
+
+  // Loading state — initial health check in progress
+  if (isChecking) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-accent-purple mb-4" />
+          <p className="text-sm text-text-muted">Łączenie z serwerem...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Error state — backend unavailable
+  if (!isBackendAvailable) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-32">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-error/10 mb-5">
+            <WifiOff className="h-8 w-8 text-error" />
+          </div>
+          <h2 className="text-lg font-bold text-text-primary mb-2">
+            Nie można połączyć się z serwerem
+          </h2>
+          <p className="text-sm text-text-muted mb-6 text-center max-w-sm">
+            Upewnij się, że backend jest uruchomiony na porcie 3001
+          </p>
+          <button
+            onClick={checkHealth}
+            className="inline-flex items-center gap-2 rounded-[var(--radius-button)] bg-gradient-to-br from-accent-pink to-accent-purple px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Spróbuj ponownie
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   const hasChannels = channels.length > 0;
 
@@ -73,6 +116,7 @@ export default function App() {
         onManualRefresh={handleManualRefresh}
         tiktokCooldownMinutes={tiktokCooldownMinutes}
         channelCount={channels.length}
+        isBackendAvailable={isBackendAvailable}
       />
 
       {!hasChannels ? (
@@ -98,6 +142,7 @@ export default function App() {
                     channel={channel}
                     onEdit={openEditModal}
                     refreshTrigger={refreshTrigger}
+                    isBackendAvailable={isBackendAvailable}
                   />
                 ))}
               </div>
@@ -123,6 +168,7 @@ export default function App() {
                     channel={channel}
                     onEdit={openEditModal}
                     refreshTrigger={refreshTrigger}
+                    isBackendAvailable={isBackendAvailable}
                   />
                 ))}
               </div>
@@ -135,13 +181,14 @@ export default function App() {
         isOpen={managerOpen}
         onClose={() => setManagerOpen(false)}
         onSave={handleSave}
-        onDelete={removeChannel}
+        onDelete={deleteChannel}
         editingChannel={editingChannel}
       />
 
       <SettingsPanel
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onKeysSaved={syncApiKeys}
       />
     </Layout>
   );

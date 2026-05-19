@@ -25,3 +25,8 @@ dist-ssr
 .env
 .env.local
 .env*.local.env
+
+# Server
+server/data/
+server/.env
+server/node_modules/
