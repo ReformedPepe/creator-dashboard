@@ -15,6 +15,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Root route
+app.get('/', (req, res) => {
+  res.status(200).send('API działa git!');
+});
+
 // Routes
 app.use('/api/channels', channelRoutes);
 app.use('/api/channels', videoRoutes);
