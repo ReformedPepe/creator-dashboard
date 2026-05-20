@@ -64,22 +64,26 @@ export function useBackend() {
         return;
       }
 
-      // 3. If backend has no channels but localStorage does — migrate them
-      if (backendChannels.length === 0) {
-        let localChannels = [];
-        try {
-          const stored = localStorage.getItem(CHANNELS_STORAGE_KEY);
-          if (stored) {
-            localChannels = JSON.parse(stored);
-          }
-        } catch {
-          // ignore parse errors
+      // 3. Migrate channels from localStorage that don't exist in backend yet (compare by identifier)
+      let localChannels = [];
+      try {
+        const stored = localStorage.getItem(CHANNELS_STORAGE_KEY);
+        if (stored) {
+          localChannels = JSON.parse(stored);
         }
+      } catch {
+        // ignore parse errors
+      }
 
-        if (localChannels.length > 0) {
-          console.log(`[useBackend] Migrating ${localChannels.length} channel(s) from localStorage to backend...`);
+      if (localChannels.length > 0) {
+        // Find channels in localStorage that are not yet in backend (by identifier)
+        const backendIdentifiers = new Set(backendChannels.map(ch => ch.identifier));
+        const toMigrate = localChannels.filter(ch => !backendIdentifiers.has(ch.identifier));
 
-          for (const ch of localChannels) {
+        if (toMigrate.length > 0) {
+          console.log(`[useBackend] Migrating ${toMigrate.length} channel(s) from localStorage to backend...`);
+
+          for (const ch of toMigrate) {
             try {
               const res = await axios.post(`${BACKEND_URL}/api/channels`, {
                 type: ch.type,

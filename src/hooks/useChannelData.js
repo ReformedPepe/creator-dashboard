@@ -1,6 +1,7 @@
 // Hook do pobierania danych dla kanału (YouTube lub TikTok)
 // Gdy backend jest dostępny, pobiera dane z backendu zamiast bezpośrednio z API
-import { useState, useCallback } from 'react';
+// Auto-refresh co 5 minut gdy backend dostępny
+import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { fetchYouTubeVideos } from '../utils/youtube';
 import { fetchTikTokVideos, fetchTikTokVideoByUrl } from '../utils/tiktok';
@@ -9,6 +10,7 @@ import { canRefreshTikTok, markTikTokRefreshed } from '../utils/rateLimiter';
 import { saveSnapshots } from '../utils/viewHistory';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 export function useChannelData(channel, { isBackendAvailable = false } = {}) {
   const [videos, setVideos] = useState(() => {
@@ -136,6 +138,22 @@ export function useChannelData(channel, { isBackendAvailable = false } = {}) {
       setLoading(false);
     }
   }, [channel, isBackendAvailable]);
+
+  // Auto-refresh every 5 minutes when backend is available
+  const intervalRef = useRef(null);
+  useEffect(() => {
+    if (isBackendAvailable && channel?.id) {
+      intervalRef.current = setInterval(() => {
+        fetchData();
+      }, AUTO_REFRESH_INTERVAL);
+    }
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isBackendAvailable, channel?.id, fetchData]);
 
   return {
     videos,
