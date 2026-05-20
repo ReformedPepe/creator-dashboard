@@ -144,16 +144,16 @@ export default function ChannelManager({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/20 modal-backdrop"
+        className="absolute inset-0 modal-backdrop"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-[var(--radius-card)] bg-bg-card p-6 shadow-[var(--shadow-modal)] animate-in">
+      <div className="relative w-full max-w-md rounded-[16px] border border-[#222222] bg-[#111111] p-6">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg-page hover:text-text-primary cursor-pointer"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-[#1C1C1C] border border-[#2A2A2A] text-[#888] transition-colors hover:text-white hover:bg-[#252525] cursor-pointer"
         >
           <X className="h-4 w-4" />
         </button>

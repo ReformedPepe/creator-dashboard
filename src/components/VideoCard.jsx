@@ -1,114 +1,91 @@
-// VideoCard — karta pojedynczego filmu
-import { Eye, Calendar, ExternalLink, ThumbsUp, MessageCircle } from 'lucide-react';
-import { formatViewCount, formatRelativeDate, formatPercentChange } from '../utils/formatters';
+// VideoCard — karta filmu (miniaturka po lewej 120px, metryki po prawej)
+import { Eye, ThumbsUp, MessageCircle } from 'lucide-react';
+import { formatViewCount, formatPercentChange } from '../utils/formatters';
 import { calculatePercentChange } from '../utils/trendCalculator';
 import { useViewHistory } from '../hooks/useViewHistory';
 import SparklineChart from './SparklineChart';
 
 export default function VideoCard({ video, timeRangeMs = Infinity }) {
   const { dataPoints: allDataPoints, trend } = useViewHistory(video.id || video.videoId);
-  
-  // Filter data points to selected time range
+
   const now = Date.now();
   const dataPoints = timeRangeMs === Infinity
     ? allDataPoints
     : allDataPoints.filter(dp => dp.timestamp >= now - timeRangeMs);
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex flex-col overflow-hidden rounded-[var(--radius-video)] bg-bg-page transition-all duration-300 hover:shadow-[var(--shadow-card-hover)] hover:scale-[1.02]"
-    >
-      {/* Thumbnail */}
-      <div className="relative aspect-video w-full overflow-hidden bg-gray-100">
+    <div className="flex gap-3 rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] p-3">
+      {/* Thumbnail — left, 120px wide, 16:9 */}
+      <div className="relative w-[120px] shrink-0 overflow-hidden rounded-md aspect-video">
         {video.thumbnail ? (
           <img
             src={video.thumbnail}
             alt={video.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover"
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-            <Eye className="h-8 w-8 text-text-muted/30" />
+          <div className="flex h-full w-full items-center justify-center bg-[#1A1A1A]">
+            <Eye className="h-5 w-5 text-[#333]" />
           </div>
         )}
-        
-        {/* Hover overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/20">
-          <ExternalLink className="h-5 w-5 text-white opacity-0 transition-all duration-300 group-hover:opacity-100 transform scale-50 group-hover:scale-100" />
-        </div>
       </div>
 
-      {/* Info */}
-      <div className="p-3 flex flex-col flex-1">
+      {/* Info — right */}
+      <div className="flex flex-col flex-1 min-w-0">
         {/* Title */}
-        <h4 className="mb-2 text-[13px] font-semibold leading-snug text-text-primary line-clamp-2 group-hover:text-accent-purple transition-colors duration-200">
+        <h4 className="text-[13px] font-medium leading-snug text-white line-clamp-2 mb-1.5">
           {video.title}
         </h4>
 
-        {/* Stats */}
-        <div className="flex items-center gap-3">
-          {/* Views */}
-          <div className="flex items-center gap-1">
-            <Eye className="h-3 w-3 text-text-muted" />
-            <span className="text-xs font-semibold text-text-secondary">
-              {formatViewCount(video.viewCount)}
-            </span>
-          </div>
-
-          {/* Likes */}
-          <div className="flex items-center gap-1">
-            <ThumbsUp className="h-3 w-3 text-text-muted" />
-            <span className="text-xs font-semibold text-text-secondary">
-              {formatViewCount(video.likeCount ?? 0)}
-            </span>
-          </div>
-
-          {/* Comments */}
-          <div className="flex items-center gap-1">
-            <MessageCircle className="h-3 w-3 text-text-muted" />
-            <span className="text-xs font-semibold text-text-secondary">
-              {formatViewCount(video.commentCount ?? 0)}
-            </span>
-          </div>
-
-          {/* Date */}
-          {video.publishedAt && (
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-text-muted" />
-              <span className="text-xs text-text-muted">
-                {formatRelativeDate(video.publishedAt)}
-              </span>
-            </div>
-          )}
+        {/* Stats row */}
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="flex items-center gap-1">
+            <Eye className="h-3 w-3 text-[#555]" />
+            <span className="font-medium text-[#A1A1AA]">{formatViewCount(video.viewCount)}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <ThumbsUp className="h-3 w-3 text-[#555]" />
+            <span className="font-medium text-[#A1A1AA]">{formatViewCount(video.likeCount ?? 0)}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageCircle className="h-3 w-3 text-[#555]" />
+            <span className="font-medium text-[#A1A1AA]">{formatViewCount(video.commentCount ?? 0)}</span>
+          </span>
         </div>
 
-        {/* Sparkline trend chart + percent change badge */}
-        <div className="flex items-center mt-auto">
+        {/* Sparkline + percent badge */}
+        <div className="flex items-center mt-auto pt-1.5">
           <div className="flex-1">
             <SparklineChart dataPoints={dataPoints} trend={trend} />
           </div>
           {(() => {
             if (dataPoints.length < 2) return null;
-            
             const percentChange = calculatePercentChange(dataPoints);
             const formatted = formatPercentChange(percentChange);
-            
-            const colorClass = percentChange >= 1
-              ? 'text-[var(--color-trend-up)]'
-              : percentChange <= -1
-                ? 'text-[var(--color-trend-down)]'
-                : 'text-[var(--color-trend-neutral)]';
+
+            if (percentChange >= 1) {
+              return (
+                <span className="text-[11px] font-semibold text-accent bg-accent-muted px-1.5 py-0.5 rounded shrink-0">
+                  {formatted}
+                </span>
+              );
+            }
+            if (percentChange <= -1) {
+              return (
+                <span className="text-[11px] font-semibold text-[#64748B] bg-[rgba(100,116,139,0.1)] px-1.5 py-0.5 rounded shrink-0">
+                  {formatted}
+                </span>
+              );
+            }
             return (
-              <span className={`text-[11px] font-semibold ${colorClass} w-14 text-right shrink-0`}>
+              <span className="text-[11px] font-semibold text-[#555] px-1.5 py-0.5 shrink-0">
                 {formatted}
               </span>
             );
           })()}
         </div>
       </div>
-    </a>
+    </div>
   );
 }

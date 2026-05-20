@@ -1,6 +1,6 @@
 // Hook do pobierania danych dla kanału (YouTube lub TikTok)
 // Gdy backend jest dostępny, pobiera dane z backendu zamiast bezpośrednio z API
-// Auto-refresh co 5 minut gdy backend dostępny
+// Auto-refresh synchronizowany z cron jobem backendu (co pełną godzinę :00)
 import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { fetchYouTubeVideos } from '../utils/youtube';
@@ -10,7 +10,17 @@ import { canRefreshTikTok, markTikTokRefreshed } from '../utils/rateLimiter';
 import { saveSnapshots } from '../utils/viewHistory';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Returns ms until the next full hour (:00:00).
+ * Adds 10s buffer so backend cron has time to finish collecting.
+ */
+function msUntilNextHour() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(next.getHours() + 1, 0, 10, 0); // next :00:10
+  return next.getTime() - now.getTime();
+}
 
 export function useChannelData(channel, { isBackendAvailable = false } = {}) {
   const [videos, setVideos] = useState(() => {
@@ -139,18 +149,25 @@ export function useChannelData(channel, { isBackendAvailable = false } = {}) {
     }
   }, [channel, isBackendAvailable]);
 
-  // Auto-refresh every 5 minutes when backend is available
-  const intervalRef = useRef(null);
+  // Auto-refresh synced to full hour (:00) — matches backend cron schedule
+  const timerRef = useRef(null);
   useEffect(() => {
-    if (isBackendAvailable && channel?.id) {
-      intervalRef.current = setInterval(() => {
+    if (!isBackendAvailable || !channel?.id) return;
+
+    const scheduleNext = () => {
+      const delay = msUntilNextHour();
+      timerRef.current = setTimeout(() => {
         fetchData();
-      }, AUTO_REFRESH_INTERVAL);
-    }
+        scheduleNext(); // schedule the next hour
+      }, delay);
+    };
+
+    scheduleNext();
+
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, [isBackendAvailable, channel?.id, fetchData]);

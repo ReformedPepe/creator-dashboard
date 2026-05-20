@@ -1,4 +1,4 @@
-// ChannelCard — karta jednego kanału z listą filmów
+// ChannelCard — karta kanału (Attio/Linear dark style)
 import { useEffect, useState } from 'react';
 import { Play, Music, Settings, Users, Eye } from 'lucide-react';
 import { useChannelData } from '../hooks/useChannelData';
@@ -16,59 +16,44 @@ const TIME_RANGES = [
 
 export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackendAvailable }) {
   const { videos, channelStats, loading, error, lastFetchedAt, fetchData } = useChannelData(channel, { isBackendAvailable });
-  const [timeRangeMs, setTimeRangeMs] = useState(24 * 60 * 60 * 1000); // default 24h
+  const [timeRangeMs, setTimeRangeMs] = useState(24 * 60 * 60 * 1000);
 
   useEffect(() => {
     fetchData();
   }, [refreshTrigger, fetchData]);
 
-  const PlatformIcon = channel.type === 'youtube' ? Play : Music;
+  const isYoutube = channel.type === 'youtube';
+  const PlatformIcon = isYoutube ? Play : Music;
 
   return (
-    <div className="rounded-[var(--radius-card)] bg-bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
+    <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5">
       {/* Channel header */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${
-            channel.type === 'youtube' ? 'bg-youtube-bg' : 'bg-tiktok-bg'
+        <div className="flex items-center gap-3">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+            isYoutube ? 'bg-youtube-bg' : 'bg-tiktok-bg'
           }`}>
-            <PlatformIcon className={`h-4 w-4 ${
-              channel.type === 'youtube' ? 'text-youtube' : 'text-tiktok'
-            }`} />
+            <PlatformIcon className={`h-4 w-4 ${isYoutube ? 'text-youtube' : 'text-tiktok'}`} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-text-primary leading-tight">
+            <h3 className="text-sm font-semibold text-white leading-tight">
               {channel.name}
             </h3>
-            <p className="text-[11px] text-text-muted font-mono">
+            <p className="text-[11px] text-[#888] font-mono">
               {channel.identifier}
             </p>
             {channelStats && (
-              <div className="mt-1 flex items-center gap-3 text-[12px]">
+              <div className="mt-1 flex items-center gap-3 text-[11px]">
                 <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3 text-text-muted" />
-                  <span className="text-text-secondary font-semibold">
-                    {formatViewCount(
-                      channel.type === 'youtube'
-                        ? channelStats.subscriberCount
-                        : channelStats.followerCount
-                    )}
-                  </span>
-                  <span className="text-text-muted">
-                    {channel.type === 'youtube' ? 'subskrybentów' : 'obserwujących'}
+                  <Users className="h-3 w-3 text-[#555]" />
+                  <span className="text-[#A1A1AA] font-medium">
+                    {formatViewCount(isYoutube ? channelStats.subscriberCount : channelStats.followerCount)}
                   </span>
                 </span>
                 <span className="flex items-center gap-1">
-                  <Eye className="h-3 w-3 text-text-muted" />
-                  <span className="text-text-secondary font-semibold">
-                    {formatViewCount(
-                      channel.type === 'youtube'
-                        ? channelStats.viewCount
-                        : channelStats.heartCount
-                    )}
-                  </span>
-                  <span className="text-text-muted">
-                    {channel.type === 'youtube' ? 'wyświetleń' : 'polubień'}
+                  <Eye className="h-3 w-3 text-[#555]" />
+                  <span className="text-[#A1A1AA] font-medium">
+                    {formatViewCount(isYoutube ? channelStats.viewCount : channelStats.heartCount)}
                   </span>
                 </span>
               </div>
@@ -78,52 +63,46 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
 
         <button
           onClick={() => onEdit(channel)}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-text-muted transition-all duration-200 hover:bg-bg-page hover:text-text-secondary cursor-pointer"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1C1C1C] border border-[#2A2A2A] text-[#888] hover:text-white hover:bg-[#252525] transition-colors cursor-pointer"
           title="Edytuj kanał"
         >
           <Settings className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Error banner */}
-      {error && (
-        <ErrorBanner 
-          message={error} 
-          hasCache={!!videos}
-          lastFetchedAt={lastFetchedAt}
-        />
-      )}
+      {/* Error */}
+      {error && <ErrorBanner message={error} hasCache={!!videos} lastFetchedAt={lastFetchedAt} />}
 
       {/* Content */}
       {loading && !videos ? (
         <LoadingSkeleton count={3} />
       ) : videos && videos.length > 0 ? (
         <>
-          {/* Sparkline legend + time range selector */}
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-4 text-[10px] text-text-muted">
+          {/* Time range + legend */}
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-3 text-[10px] text-[#555]">
               <span className="flex items-center gap-1">
-                <span className="inline-block h-[2px] w-3 rounded" style={{ backgroundColor: 'var(--color-trend-up)' }} />
+                <span className="inline-block h-[2px] w-3 rounded bg-accent" />
                 wzrost
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block h-[2px] w-3 rounded" style={{ backgroundColor: 'var(--color-trend-neutral)' }} />
+                <span className="inline-block h-[2px] w-3 rounded bg-[#333]" />
                 stabilnie
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block h-[2px] w-3 rounded" style={{ backgroundColor: 'var(--color-trend-down)' }} />
+                <span className="inline-block h-[2px] w-3 rounded bg-[#64748B]" />
                 spadek
               </span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {TIME_RANGES.map(({ label, ms }) => (
                 <button
                   key={label}
                   onClick={(e) => { e.preventDefault(); setTimeRangeMs(ms); }}
-                  className={`px-1.5 py-0.5 text-[10px] rounded cursor-pointer transition-colors ${
+                  className={`px-2 py-0.5 text-[10px] rounded-md cursor-pointer transition-colors ${
                     timeRangeMs === ms
-                      ? 'bg-accent-purple/20 text-accent-purple font-semibold'
-                      : 'text-text-muted hover:text-text-secondary'
+                      ? 'bg-accent-muted text-accent-light font-semibold'
+                      : 'text-[#555] hover:text-[#888]'
                   }`}
                 >
                   {label}
@@ -131,11 +110,11 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="space-y-2">
             {videos.map((video) => (
-              <VideoCard 
-                key={video.id} 
-                video={video} 
+              <VideoCard
+                key={video.id}
+                video={video}
                 platform={channel.type}
                 timeRangeMs={timeRangeMs}
               />
@@ -143,8 +122,8 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
           </div>
         </>
       ) : !error ? (
-        <div className="flex items-center justify-center rounded-[var(--radius-video)] bg-bg-page py-8">
-          <p className="text-sm text-text-muted">Brak filmów do wyświetlenia</p>
+        <div className="flex items-center justify-center rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] py-8">
+          <p className="text-sm text-[#555]">Brak filmów do wyświetlenia</p>
         </div>
       ) : null}
     </div>

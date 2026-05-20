@@ -4,88 +4,53 @@
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* Backgrounds */
-  --color-bg-page: #F2F2F2;
-  --color-bg-card: #FFFFFF;
-  --color-bg-card-hover: #FAFAFA;
+  /* Dark-only design system — Attio/Linear style */
+  --color-bg-page: #0A0A0A;
+  --color-bg-sidebar: #111111;
+  --color-bg-card: #111111;
+  --color-bg-card-inner: #0F0F0F;
+  --color-bg-card-hover: #151515;
+  --color-border: #1E1E1E;
+  --color-border-light: #2A2A2A;
+  --color-border-focus: #E53935;
 
-  /* Gradient accent */
-  --color-accent-pink: #3B82F6;
-  --color-accent-purple: #6366F1;
-  --color-accent-violet: #4F46E5;
+  /* Accent — red */
+  --color-accent: #E53935;
+  --color-accent-light: #EF5350;
+  --color-accent-dark: #C62828;
+  --color-accent-muted: rgba(229, 57, 53, 0.15);
 
   /* Text */
-  --color-text-primary: #1A1A2E;
-  --color-text-secondary: #64748B;
-  --color-text-muted: #94A3B8;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #A1A1AA;
+  --color-text-muted: #52525B;
+  --color-text-label: #52525B;
 
   /* Platform colors */
   --color-youtube: #FF0000;
-  --color-youtube-bg: #FEF2F2;
-  --color-youtube-border: #FECACA;
-  --color-tiktok: #010101;
-  --color-tiktok-bg: #F0FDF4;
-  --color-tiktok-border: #BBF7D0;
-  --color-tiktok-accent: #25F4EE;
+  --color-youtube-bg: rgba(255, 0, 0, 0.08);
+  --color-tiktok: #25F4EE;
+  --color-tiktok-bg: rgba(37, 244, 238, 0.08);
 
   /* Status */
-  --color-success: #10B981;
+  --color-success: #22C55E;
   --color-error: #EF4444;
-  --color-error-bg: #FEF2F2;
   --color-warning: #F59E0B;
-  --color-warning-bg: #FFFBEB;
 
   /* Trend colors */
-  --color-trend-up: #22C55E;
-  --color-trend-down: #EF4444;
-  --color-trend-neutral: #6B7280;
+  --color-trend-up: #E53935;
+  --color-trend-down: #64748B;
+  --color-trend-neutral: #333333;
 
-  /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03);
-  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.06);
+  /* Shadows — minimal for dark UI */
+  --shadow-card: none;
+  --shadow-card-hover: none;
 
   /* Border radius */
-  --radius-card: 20px;
-  --radius-button: 14px;
+  --radius-card: 12px;
+  --radius-button: 10px;
   --radius-pill: 100px;
-  --radius-input: 12px;
-  --radius-video: 14px;
-}
-
-@layer base {
-  @font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 100 900;
-    font-display: swap;
-    src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-  }
-}
-
-/* Dark mode variable overrides */
-html.dark {
-  --color-bg-page: #0f0f14;
-  --color-bg-card: #1a1a24;
-  --color-bg-card-hover: #22222e;
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #a0a0b0;
-  --color-text-muted: #6b6b80;
-  --color-youtube: #FF4444;
-  --color-youtube-bg: #2a1a1a;
-  --color-youtube-border: #4a2a2a;
-  --color-tiktok: #25F4EE;
-  --color-tiktok-bg: #0f2a2e;
-  --color-tiktok-border: #1a4a50;
-  --color-tiktok-accent: #25F4EE;
-  --color-error-bg: #2a1a1a;
-  --color-warning-bg: #2a2510;
-  --color-trend-up: #4ADE80;
-  --color-trend-down: #F87171;
-  --color-trend-neutral: #9CA3AF;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.4);
+  --radius-input: 10px;
 }
 
 /* Global styles */
@@ -95,7 +60,12 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: color 200ms ease, background-color 200ms ease;
+}
+
+/* Dotted background pattern */
+.dotted-bg {
+  background-image: radial-gradient(circle, #1A1A1A 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 /* Scrollbar styling */
@@ -108,20 +78,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #2A2A2A;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
-}
-
-html.dark ::-webkit-scrollbar-thumb {
-  background: #3a3a4a;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a6a;
+  background: #3A3A3A;
 }
 
 /* Sparkline draw animation */
@@ -130,7 +92,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   to { stroke-dashoffset: 0; }
 }
 
-/* Sparkline data collection pulse */
+/* Pulse animation */
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
@@ -138,8 +100,8 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 /* Skeleton animation */
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.4; }
 }
 
 .animate-skeleton {
@@ -148,33 +110,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 /* Modal backdrop */
 .modal-backdrop {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-accent-pink), var(--color-accent-purple));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Card glass effect */
-.card-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-html.dark .card-glass {
-  background: #1a1a24;
-}
-
-@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
-  html.dark .card-glass {
-    background: rgba(26, 26, 36, 0.75);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.7);
 }
