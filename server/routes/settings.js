@@ -32,7 +32,7 @@ router.post('/settings', async (req, res) => {
   }
 });
 
-// GET /api/settings/status — check which keys are configured (without exposing values)
+// GET /api/settings/status — return masked keys and boolean status
 router.get('/settings/status', async (req, res) => {
   const userId = req.user.id;
 
@@ -48,11 +48,22 @@ router.get('/settings/status', async (req, res) => {
     res.json({
       youtubeKeySet: !!(data?.youtube_api_key),
       tiktokKeySet: !!(data?.tiktok_rapidapi_key),
+      youtubeMasked: maskKey(data?.youtube_api_key),
+      tiktokMasked: maskKey(data?.tiktok_rapidapi_key),
     });
   } catch (err) {
     console.error('[settings] GET status error:', err.message);
     res.status(500).json({ error: 'Nie udało się sprawdzić statusu kluczy' });
   }
 });
+
+/**
+ * Masks a key: first 4 chars + •••••••• + last 4 chars
+ * Returns null if key is empty/null
+ */
+function maskKey(key) {
+  if (!key || key.length < 9) return key ? '••••••••' : null;
+  return key.slice(0, 4) + '••••••••' + key.slice(-4);
+}
 
 module.exports = router;

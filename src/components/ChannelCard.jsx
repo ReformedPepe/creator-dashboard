@@ -10,7 +10,7 @@ const TIME_RANGES = [
   { label: 'Wszystko', ms: Infinity },
 ];
 
-export default function ChannelCard({ channel, videos, loading, onEdit }) {
+export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKey, onGoToSettings }) {
   const [timeRangeMs, setTimeRangeMs] = useState(24 * 60 * 60 * 1000);
 
   const isYoutube = channel.type === 'youtube';
@@ -100,7 +100,21 @@ export default function ChannelCard({ channel, videos, loading, onEdit }) {
         </>
       ) : (
         <div className="flex items-center justify-center rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] py-8">
-          <p className="text-sm text-[#555]">Brak filmów do wyświetlenia</p>
+          {!hasApiKey ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm text-[#888]">
+                Dodaj klucz {channel.type === 'youtube' ? 'YouTube API' : 'TikTok RapidAPI'} w Ustawieniach żeby zobaczyć filmy
+              </p>
+              <button
+                onClick={onGoToSettings}
+                className="text-xs text-accent hover:underline cursor-pointer"
+              >
+                Przejdź do Ustawień →
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-[#555]">Brak filmów do wyświetlenia</p>
+          )}
         </div>
       )}
     </div>

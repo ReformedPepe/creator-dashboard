@@ -25,25 +25,30 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [youtubeError, setYoutubeError] = useState('');
   const [tiktokError, setTiktokError] = useState('');
   const [backendKeyStatus, setBackendKeyStatus] = useState(null);
+  // Track whether user is editing (clicked into field) vs showing masked value
+  const [youtubeEditing, setYoutubeEditing] = useState(false);
+  const [tiktokEditing, setTiktokEditing] = useState(false);
+
+  const fetchKeyStatus = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await axios.get(`${BACKEND_URL}/api/settings/status`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      setBackendKeyStatus(res.data);
+    } catch {
+      // ignore
+    }
+  };
 
   // Load keys from localStorage and check backend status
   useEffect(() => {
-    setYoutubeKey(getStoredYouTubeKey());
-    setTiktokKey(getStoredTikTokKey());
-
-    // Check backend for key status
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) return;
-        const res = await axios.get(`${BACKEND_URL}/api/settings/status`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        setBackendKeyStatus(res.data);
-      } catch {
-        // ignore — just won't show status
-      }
-    })();
+    const localYt = getStoredYouTubeKey();
+    const localTt = getStoredTikTokKey();
+    if (localYt) setYoutubeKey(localYt);
+    if (localTt) setTiktokKey(localTt);
+    fetchKeyStatus();
   }, []);
 
   const handleSave = async () => {
@@ -96,6 +101,10 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
       }
 
       if (onKeysSaved) onKeysSaved();
+      // Refresh masked keys from backend
+      await fetchKeyStatus();
+      setYoutubeEditing(false);
+      setTiktokEditing(false);
     } catch (err) {
       console.error('Błąd walidacji kluczy:', err);
     } finally {
@@ -123,8 +132,14 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
             <div className="relative">
               <input
                 type={showYoutubeKey ? 'text' : 'password'}
-                value={youtubeKey}
+                value={youtubeEditing ? youtubeKey : (youtubeKey || backendKeyStatus?.youtubeMasked || '')}
                 onChange={(e) => { setYoutubeKey(e.target.value); setYoutubeStatus('idle'); }}
+                onFocus={() => {
+                  if (!youtubeEditing && !youtubeKey && backendKeyStatus?.youtubeMasked) {
+                    setYoutubeKey('');
+                  }
+                  setYoutubeEditing(true);
+                }}
                 placeholder="AIza..."
                 className={`w-full rounded-lg border bg-bg-card-inner px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-accent font-mono ${
                   youtubeStatus === 'error' ? 'border-error' : youtubeStatus === 'success' ? 'border-success' : 'border-border'
@@ -149,6 +164,19 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
                 <Check className="h-3 w-3" /> Klucz zapisany na serwerze
               </p>
             )}
+            {/* YouTube guide */}
+            <details className="mt-3 group">
+              <summary className="text-[11px] text-[#666] cursor-pointer hover:text-[#999] transition-colors">
+                Jak uzyskać klucz YouTube API? ↓
+              </summary>
+              <ol className="mt-2 ml-3 space-y-1 text-[11px] text-[#555] list-decimal list-outside">
+                <li>Wejdź na <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">console.cloud.google.com</a></li>
+                <li>Utwórz nowy projekt</li>
+                <li>Włącz „YouTube Data API v3" w bibliotece API</li>
+                <li>Przejdź do „Dane logowania" → „Utwórz dane logowania" → „Klucz API"</li>
+                <li>Skopiuj wygenerowany klucz</li>
+              </ol>
+            </details>
           </div>
 
           {/* TikTok */}
@@ -159,8 +187,14 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
             <div className="relative">
               <input
                 type={showTiktokKey ? 'text' : 'password'}
-                value={tiktokKey}
+                value={tiktokEditing ? tiktokKey : (tiktokKey || backendKeyStatus?.tiktokMasked || '')}
                 onChange={(e) => { setTiktokKey(e.target.value); setTiktokStatus('idle'); }}
+                onFocus={() => {
+                  if (!tiktokEditing && !tiktokKey && backendKeyStatus?.tiktokMasked) {
+                    setTiktokKey('');
+                  }
+                  setTiktokEditing(true);
+                }}
                 placeholder="xxxxxxxx..."
                 className={`w-full rounded-lg border bg-bg-card-inner px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-accent font-mono ${
                   tiktokStatus === 'error' ? 'border-error' : tiktokStatus === 'success' ? 'border-success' : 'border-border'
@@ -185,6 +219,18 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
                 <Check className="h-3 w-3" /> Klucz zapisany na serwerze
               </p>
             )}
+            {/* TikTok guide */}
+            <details className="mt-3 group">
+              <summary className="text-[11px] text-[#666] cursor-pointer hover:text-[#999] transition-colors">
+                Jak uzyskać klucz TikTok RapidAPI? ↓
+              </summary>
+              <ol className="mt-2 ml-3 space-y-1 text-[11px] text-[#555] list-decimal list-outside">
+                <li>Zarejestruj się na <a href="https://rapidapi.com/tikwm-tikwm-default/api/tiktok-scraper7" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">rapidapi.com</a></li>
+                <li>Wyszukaj „TikTok Scraper" (tiktok-scraper7)</li>
+                <li>Wybierz darmowy plan Basic (300 req/miesiąc)</li>
+                <li>Skopiuj klucz z zakładki „Header Parameters" → „X-RapidAPI-Key"</li>
+              </ol>
+            </details>
           </div>
 
           {/* Save */}

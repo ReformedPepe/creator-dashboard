@@ -49,9 +49,26 @@ export default function App() {
   const [videosMap, setVideosMap] = useState({});
   // Loading state — shows spinner instead of videos during refresh
   const [videosLoading, setVideosLoading] = useState(false);
+  // API key status from backend
+  const [keyStatus, setKeyStatus] = useState({ youtubeKeySet: false, tiktokKeySet: false });
 
   const youtubeChannels = channels.filter(ch => ch.type === 'youtube');
   const tiktokChannels = channels.filter(ch => ch.type === 'tiktok');
+
+  // Fetch key status when backend is available and user is logged in
+  useEffect(() => {
+    if (!isBackendAvailable || !user) return;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) return;
+        const res = await axios.get(`${BACKEND_URL}/api/settings/status`, { headers });
+        setKeyStatus(res.data);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [isBackendAvailable, user]);
 
   // Fetch videos for all channels from backend
   const fetchAllVideos = useCallback(async (showLoading = false) => {
@@ -274,6 +291,8 @@ export default function App() {
                             videos={videosMap[channel.id] || null}
                             loading={videosLoading}
                             onEdit={openEditModal}
+                            hasApiKey={keyStatus.youtubeKeySet}
+                            onGoToSettings={() => setCurrentView('settings')}
                           />
                         ))}
                       </div>
@@ -295,6 +314,8 @@ export default function App() {
                             videos={videosMap[channel.id] || null}
                             loading={videosLoading}
                             onEdit={openEditModal}
+                            hasApiKey={keyStatus.tiktokKeySet}
+                            onGoToSettings={() => setCurrentView('settings')}
                           />
                         ))}
                       </div>
