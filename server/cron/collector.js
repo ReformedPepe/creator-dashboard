@@ -27,7 +27,7 @@ async function getUserIds() {
 async function getUserKeys(userId) {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('youtube_api_key, tiktok_api_key')
+    .select('youtube_api_key, tiktok_rapidapi_key')
     .eq('user_id', userId)
     .single();
 
@@ -37,7 +37,7 @@ async function getUserKeys(userId) {
 
   return {
     youtubeApiKey: data.youtube_api_key || null,
-    tiktokApiKey: data.tiktok_api_key || null,
+    tiktokApiKey: data.tiktok_rapidapi_key || null,
   };
 }
 

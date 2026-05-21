@@ -16,7 +16,7 @@ router.post('/settings', async (req, res) => {
         {
           user_id: userId,
           youtube_api_key: youtubeApiKey || null,
-          tiktok_api_key: tiktokApiKey || null,
+          tiktok_rapidapi_key: tiktokApiKey || null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' }
@@ -39,7 +39,7 @@ router.get('/settings/status', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('api_keys')
-      .select('youtube_api_key, tiktok_api_key')
+      .select('youtube_api_key, tiktok_rapidapi_key')
       .eq('user_id', userId)
       .single();
 
@@ -47,7 +47,7 @@ router.get('/settings/status', async (req, res) => {
 
     res.json({
       youtubeKeySet: !!(data?.youtube_api_key),
-      tiktokKeySet: !!(data?.tiktok_api_key),
+      tiktokKeySet: !!(data?.tiktok_rapidapi_key),
     });
   } catch (err) {
     console.error('[settings] GET status error:', err.message);
