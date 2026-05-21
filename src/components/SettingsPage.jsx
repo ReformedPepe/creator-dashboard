@@ -1,6 +1,8 @@
 // SettingsPage — strona ustawień (klucze API + konto)
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Check, Loader2, Key, User } from 'lucide-react';
+import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import {
   getStoredYouTubeKey,
   getStoredTikTokKey,
@@ -9,6 +11,8 @@ import {
   validateYouTubeKey,
   validateTikTokKey,
 } from '../utils/apiKeys';
+
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [youtubeKey, setYoutubeKey] = useState('');
@@ -20,10 +24,26 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [tiktokStatus, setTiktokStatus] = useState('idle');
   const [youtubeError, setYoutubeError] = useState('');
   const [tiktokError, setTiktokError] = useState('');
+  const [backendKeyStatus, setBackendKeyStatus] = useState(null);
 
+  // Load keys from localStorage and check backend status
   useEffect(() => {
     setYoutubeKey(getStoredYouTubeKey());
     setTiktokKey(getStoredTikTokKey());
+
+    // Check backend for key status
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await axios.get(`${BACKEND_URL}/api/settings/status`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        setBackendKeyStatus(res.data);
+      } catch {
+        // ignore — just won't show status
+      }
+    })();
   }, []);
 
   const handleSave = async () => {
@@ -124,6 +144,11 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
               </p>
             )}
             {youtubeStatus === 'error' && <p className="mt-1 text-xs text-error">{youtubeError}</p>}
+            {youtubeStatus === 'idle' && !youtubeKey && backendKeyStatus?.youtubeKeySet && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+                <Check className="h-3 w-3" /> Klucz zapisany na serwerze
+              </p>
+            )}
           </div>
 
           {/* TikTok */}
@@ -155,6 +180,11 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
               </p>
             )}
             {tiktokStatus === 'error' && <p className="mt-1 text-xs text-error">{tiktokError}</p>}
+            {tiktokStatus === 'idle' && !tiktokKey && backendKeyStatus?.tiktokKeySet && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+                <Check className="h-3 w-3" /> Klucz zapisany na serwerze
+              </p>
+            )}
           </div>
 
           {/* Save */}

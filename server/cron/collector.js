@@ -158,6 +158,32 @@ async function collectForChannel(channel, keys) {
 }
 
 /**
+ * Collects data for a single user's channels.
+ * Used by POST /api/refresh to only refresh the authenticated user's data.
+ * @param {string} userId — Supabase user ID
+ * @param {string} [filterType] — optional: 'youtube' or 'tiktok'
+ */
+async function collectForUser(userId, filterType) {
+  const keys = await getUserKeys(userId);
+  const channels = await getUserChannels(userId, filterType);
+
+  console.log(`[cron] Refreshing ${channels.length} channel(s) for user ${userId}, filter: ${filterType || 'all'}...`);
+
+  const results = [];
+  for (const channel of channels) {
+    try {
+      const result = await collectForChannel(channel, keys);
+      results.push(result);
+    } catch (err) {
+      console.error(`[cron] Error collecting "${channel.name}":`, err.message);
+      results.push({ channel: channel.name, status: 'error', error: err.message });
+    }
+  }
+
+  return results;
+}
+
+/**
  * Collects data for all users and their channels.
  * @param {string} [filterType] — optional: 'youtube' or 'tiktok'
  */
@@ -194,4 +220,4 @@ async function collectTikTok() {
   return collectAll('tiktok');
 }
 
-module.exports = { collectAll, collectForChannel, collectYouTube, collectTikTok };
+module.exports = { collectAll, collectForChannel, collectForUser, collectYouTube, collectTikTok };

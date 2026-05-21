@@ -13,7 +13,7 @@ async function getAuthHeaders() {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
-export function useBackend() {
+export function useBackend(user) {
   const [isBackendAvailable, setIsBackendAvailable] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [channels, setChannels] = useState([]);
@@ -36,19 +36,20 @@ export function useBackend() {
     checkHealth();
   }, [checkHealth]);
 
-  // Fetch channels when backend becomes available
+  // Fetch channels when backend is available AND user is authenticated
   useEffect(() => {
-    if (!isBackendAvailable) return;
+    if (!isBackendAvailable || !user) return;
     (async () => {
       try {
         const headers = await getAuthHeaders();
+        if (!headers.Authorization) return; // no token yet
         const res = await axios.get(`${BACKEND_URL}/api/channels`, { headers });
         setChannels(res.data);
       } catch (err) {
         console.warn('[useBackend] Failed to fetch channels:', err.message);
       }
     })();
-  }, [isBackendAvailable]);
+  }, [isBackendAvailable, user]);
 
   const fetchChannels = useCallback(async () => {
     const headers = await getAuthHeaders();

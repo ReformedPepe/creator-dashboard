@@ -1,12 +1,26 @@
 // VideoCard — karta filmu (miniaturka po lewej 120px, metryki po prawej)
+import { useMemo } from 'react';
 import { Eye, ThumbsUp, MessageCircle } from 'lucide-react';
 import { formatViewCount, formatPercentChange } from '../utils/formatters';
-import { calculatePercentChange } from '../utils/trendCalculator';
+import { calculatePercentChange, calculateTrend } from '../utils/trendCalculator';
 import { useViewHistory } from '../hooks/useViewHistory';
 import SparklineChart from './SparklineChart';
 
 export default function VideoCard({ video, timeRangeMs = Infinity }) {
-  const { dataPoints: allDataPoints, trend } = useViewHistory(video.id || video.videoId);
+  // Try backend snapshots first (works across devices), fallback to localStorage
+  const localHistory = useViewHistory(video.id || video.videoId);
+
+  const { dataPoints: allDataPoints, trend } = useMemo(() => {
+    const backendSnaps = video._backendSnapshots;
+    if (backendSnaps && backendSnaps.length >= 2) {
+      const points = backendSnaps.map(s => ({
+        timestamp: typeof s.timestamp === 'string' ? new Date(s.timestamp).getTime() : s.timestamp,
+        viewCount: s.view_count,
+      }));
+      return { dataPoints: points, trend: calculateTrend(points) };
+    }
+    return localHistory;
+  }, [video._backendSnapshots, localHistory]);
 
   const now = Date.now();
   const dataPoints = timeRangeMs === Infinity

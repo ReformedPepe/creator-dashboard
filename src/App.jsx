@@ -35,7 +35,7 @@ export default function App() {
     refresh: backendRefresh,
     syncApiKeys,
     checkHealth,
-  } = useBackend();
+  } = useBackend(user);
 
   const [currentView, setCurrentView] = useState('dashboard');
   const [managerOpen, setManagerOpen] = useState(false);
