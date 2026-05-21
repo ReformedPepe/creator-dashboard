@@ -69,10 +69,11 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
         </div>
 
         {/* Sparkline + percent badge */}
-        <div className="flex items-center mt-auto pt-1.5">
-          <div className="flex-1">
+        <div className="relative mt-auto pt-1.5">
+          <div className="pr-[68px]">
             <SparklineChart dataPoints={dataPoints} trend={trend} />
           </div>
+          <div className="absolute right-0 top-[8px] w-[60px] flex items-center justify-center">
           {(() => {
             if (dataPoints.length < 2) return null;
             const percentChange = calculatePercentChange(dataPoints);
@@ -80,24 +81,25 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
 
             if (percentChange >= 1) {
               return (
-                <span className="text-[11px] font-semibold text-accent bg-accent-muted px-1.5 py-0.5 rounded shrink-0">
+                <span className="text-[11px] font-semibold text-accent bg-accent-muted px-1.5 py-0.5 rounded">
                   {formatted}
                 </span>
               );
             }
             if (percentChange <= -1) {
               return (
-                <span className="text-[11px] font-semibold text-[#64748B] bg-[rgba(100,116,139,0.1)] px-1.5 py-0.5 rounded shrink-0">
+                <span className="text-[11px] font-semibold text-[#64748B] bg-[rgba(100,116,139,0.1)] px-1.5 py-0.5 rounded">
                   {formatted}
                 </span>
               );
             }
             return (
-              <span className="text-[11px] font-semibold text-[#555] px-1.5 py-0.5 shrink-0">
+              <span className="text-[11px] font-semibold text-[#555] bg-[rgba(85,85,85,0.1)] px-1.5 py-0.5 rounded">
                 {formatted}
               </span>
             );
           })()}
+          </div>
         </div>
       </div>
     </div>

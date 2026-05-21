@@ -4,21 +4,48 @@ const { fetchYouTubeVideos } = require('../services/youtube');
 const { fetchTikTokVideos } = require('../services/tiktok');
 
 /**
- * Get all distinct user IDs that have channels.
+ * Get active user IDs — only users who logged in within the last 7 days
+ * and have at least one channel.
  */
 async function getUserIds() {
-  const { data, error } = await supabase
-    .from('channels')
-    .select('user_id');
+  // Get users active in last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  if (error) {
-    console.error('[cron] Failed to fetch user IDs:', error.message);
+  const { data: activeUsers, error: actError } = await supabase
+    .from('user_activity')
+    .select('user_id')
+    .gte('last_seen_at', sevenDaysAgo);
+
+  if (actError) {
+    console.error('[cron] Failed to fetch active users:', actError.message);
     return [];
   }
 
-  // Deduplicate
-  const unique = [...new Set(data.map(row => row.user_id))];
-  return unique;
+  const activeUserIds = new Set(activeUsers.map(row => row.user_id));
+
+  // Get all users that have channels
+  const { data: channelUsers, error: chError } = await supabase
+    .from('channels')
+    .select('user_id');
+
+  if (chError) {
+    console.error('[cron] Failed to fetch channel user IDs:', chError.message);
+    return [];
+  }
+
+  const allChannelUserIds = [...new Set(channelUsers.map(row => row.user_id))];
+
+  // Filter: only active users with channels
+  const result = [];
+  for (const userId of allChannelUserIds) {
+    if (activeUserIds.has(userId)) {
+      result.push(userId);
+    } else {
+      console.log(`[cron] Skipping inactive user ${userId}`);
+    }
+  }
+
+  return result;
 }
 
 /**

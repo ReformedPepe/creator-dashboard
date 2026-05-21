@@ -244,7 +244,7 @@ export default function App() {
     <div className="min-h-screen bg-bg-page">
       <Sidebar currentView={currentView} onNavigate={handleNavigate} onCollapseChange={setSidebarCollapsed} user={user} onSignOut={signOut} />
 
-      <main className={`min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-60'}`}>
+      <main className={`min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
         <div className="dotted-bg min-h-screen p-6">
           {(currentView === 'dashboard' || currentView === 'channels') && (
             <>

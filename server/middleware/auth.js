@@ -17,6 +17,18 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = user
+
+    // Update last_seen_at (fire-and-forget, don't block the request)
+    supabase
+      .from('user_activity')
+      .upsert(
+        { user_id: user.id, last_seen_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+      .then(({ error: actErr }) => {
+        if (actErr) console.error('[Auth] Failed to update last_seen_at:', actErr.message)
+      })
+
     next()
   } catch (err) {
     console.error('[Auth] Błąd weryfikacji tokenu:', err.message)
