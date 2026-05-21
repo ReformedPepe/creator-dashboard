@@ -14,9 +14,4 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// GET /api/health — server availability check
-router.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
-});
-
 module.exports = router;

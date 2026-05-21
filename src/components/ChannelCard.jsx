@@ -1,11 +1,7 @@
-// ChannelCard — karta kanału (Attio/Linear dark style)
-import { useEffect, useState } from 'react';
-import { Play, Music, Settings, Users, Eye } from 'lucide-react';
-import { useChannelData } from '../hooks/useChannelData';
-import { formatViewCount } from '../utils/formatters';
+// ChannelCard — karta kanału z loading spinner podczas odświeżania
+import { useState } from 'react';
+import { Play, Music, Settings, Loader2 } from 'lucide-react';
 import VideoCard from './VideoCard';
-import LoadingSkeleton from './LoadingSkeleton';
-import ErrorBanner from './ErrorBanner';
 
 const TIME_RANGES = [
   { label: '1h', ms: 60 * 60 * 1000 },
@@ -14,13 +10,8 @@ const TIME_RANGES = [
   { label: 'Wszystko', ms: Infinity },
 ];
 
-export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackendAvailable }) {
-  const { videos, channelStats, loading, error, lastFetchedAt, fetchData } = useChannelData(channel, { isBackendAvailable });
+export default function ChannelCard({ channel, videos, loading, onEdit }) {
   const [timeRangeMs, setTimeRangeMs] = useState(24 * 60 * 60 * 1000);
-
-  useEffect(() => {
-    fetchData();
-  }, [refreshTrigger, fetchData]);
 
   const isYoutube = channel.type === 'youtube';
   const PlatformIcon = isYoutube ? Play : Music;
@@ -42,22 +33,6 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
             <p className="text-[11px] text-[#888] font-mono">
               {channel.identifier}
             </p>
-            {channelStats && (
-              <div className="mt-1 flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3 text-[#555]" />
-                  <span className="text-[#A1A1AA] font-medium">
-                    {formatViewCount(isYoutube ? channelStats.subscriberCount : channelStats.followerCount)}
-                  </span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <Eye className="h-3 w-3 text-[#555]" />
-                  <span className="text-[#A1A1AA] font-medium">
-                    {formatViewCount(isYoutube ? channelStats.viewCount : channelStats.heartCount)}
-                  </span>
-                </span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -70,12 +45,14 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
         </button>
       </div>
 
-      {/* Error */}
-      {error && <ErrorBanner message={error} hasCache={!!videos} lastFetchedAt={lastFetchedAt} />}
-
-      {/* Content */}
+      {/* Loading spinner — shown during refresh */}
       {loading && !videos ? (
-        <LoadingSkeleton count={3} />
+        <div className="flex items-center justify-center rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] py-12">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            <p className="text-xs text-[#555]">Odświeżanie danych...</p>
+          </div>
+        </div>
       ) : videos && videos.length > 0 ? (
         <>
           {/* Time range + legend */}
@@ -121,11 +98,11 @@ export default function ChannelCard({ channel, onEdit, refreshTrigger, isBackend
             ))}
           </div>
         </>
-      ) : !error ? (
+      ) : (
         <div className="flex items-center justify-center rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] py-8">
           <p className="text-sm text-[#555]">Brak filmów do wyświetlenia</p>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

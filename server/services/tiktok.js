@@ -1,6 +1,5 @@
 // services/tiktok.js — TikTok data via RapidAPI (tiktok-scraper7.p.rapidapi.com)
 const axios = require('axios');
-const { getTikTokApiKey } = require('./settings');
 
 const RAPIDAPI_HOST = 'tiktok-scraper7.p.rapidapi.com';
 const BASE_URL = `https://${RAPIDAPI_HOST}`;
@@ -8,12 +7,12 @@ const BASE_URL = `https://${RAPIDAPI_HOST}`;
 /**
  * Fetches up to 3 recent videos for a TikTok username via RapidAPI.
  * @param {string} identifier — TikTok username (with or without @ prefix)
+ * @param {string} apiKey — RapidAPI key for TikTok Scraper
  * @returns {Promise<Array<{video_id: string, title: string, thumbnail: string, view_count: number}>>}
  */
-async function fetchTikTokVideos(identifier) {
-  const apiKey = getTikTokApiKey();
+async function fetchTikTokVideos(identifier, apiKey) {
   if (!apiKey) {
-    console.warn('[tiktok] No TIKTOK_RAPIDAPI_KEY configured — skipping');
+    console.warn('[tiktok] No TikTok API key provided — skipping');
     return [];
   }
 

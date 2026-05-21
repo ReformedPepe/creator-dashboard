@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
+const { requireAuth } = require('./middleware/auth');
 const channelRoutes = require('./routes/channels');
 const videoRoutes = require('./routes/videos');
 const refreshRoutes = require('./routes/refresh');
@@ -19,6 +20,14 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.status(200).send('API działa git!');
 });
+
+// Health check — public (no auth)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Auth middleware for all /api/* routes (except /api/health above)
+app.use('/api', requireAuth);
 
 // Routes
 app.use('/api/channels', channelRoutes);

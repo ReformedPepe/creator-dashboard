@@ -1,6 +1,6 @@
 // Sidebar — minimalistyczny, ciemny, ikony w kontenerach (Attio/Linear style)
 import { useState } from 'react';
-import { LayoutDashboard, Radio, Settings, PanelLeft, PanelRight, BarChart2, User } from 'lucide-react';
+import { LayoutDashboard, Radio, Settings, PanelLeft, PanelRight, BarChart2, User, LogOut } from 'lucide-react';
 
 const SIDEBAR_KEY = 'creator-dashboard-sidebar-collapsed';
 
@@ -10,7 +10,7 @@ const navItems = [
   { id: 'settings', label: 'Ustawienia', icon: Settings },
 ];
 
-export default function Sidebar({ currentView, onNavigate, onCollapseChange }) {
+export default function Sidebar({ currentView, onNavigate, onCollapseChange, user, onSignOut }) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(SIDEBAR_KEY) === 'true';
@@ -110,16 +110,27 @@ export default function Sidebar({ currentView, onNavigate, onCollapseChange }) {
       </div>
 
       {/* User avatar */}
-      <div className={`py-3 border-t border-[#2A2A2A] w-full ${collapsed ? 'flex justify-center' : 'px-3 flex items-center gap-3'}`}>
+      <div className={`py-3 border-t border-[#2A2A2A] w-full ${collapsed ? 'flex flex-col items-center gap-2' : 'px-3 flex items-center gap-3'}`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1C1C1C] border border-[#2A2A2A] shrink-0">
           <User className="h-4 w-4 text-[#888]" />
         </div>
         {!collapsed && (
-          <div className="overflow-hidden">
-            <p className="text-xs font-medium text-white truncate">Użytkownik</p>
-            <p className="text-[10px] text-[#888] truncate">user@example.com</p>
+          <div className="overflow-hidden flex-1">
+            <p className="text-xs font-medium text-white truncate">
+              {user?.email?.split('@')[0] || 'Użytkownik'}
+            </p>
+            <p className="text-[10px] text-[#888] truncate">{user?.email || ''}</p>
           </div>
         )}
+        <button
+          onClick={onSignOut}
+          className={`flex items-center justify-center rounded-lg transition-colors cursor-pointer hover:bg-[#252525] ${
+            collapsed ? 'h-8 w-8' : 'h-8 w-8 shrink-0'
+          }`}
+          title="Wyloguj"
+        >
+          <LogOut className="h-4 w-4 text-[#888]" />
+        </button>
       </div>
     </aside>
   );

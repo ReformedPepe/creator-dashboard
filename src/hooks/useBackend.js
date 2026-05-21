@@ -1,20 +1,24 @@
 // Hook do komunikacji z backendem — sprawdza dostępność i udostępnia metody API
-// Automatycznie migruje kanały z localStorage i synchronizuje klucze API
 // Backend jest jedynym źródłem prawdy — brak fallbacku do localStorage
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { getYouTubeApiKey, getTikTokApiKey } from '../utils/apiKeys';
+import { supabase } from '../lib/supabase';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-const CHANNELS_STORAGE_KEY = 'creator-dashboard-channels';
+
+// Helper: get current access token for Authorization header
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return {};
+  return { Authorization: `Bearer ${session.access_token}` };
+}
 
 export function useBackend() {
   const [isBackendAvailable, setIsBackendAvailable] = useState(false);
-  const [isChecking, setIsChecking] = useState(true); // true during initial health check
+  const [isChecking, setIsChecking] = useState(true);
   const [channels, setChannels] = useState([]);
-  const syncDone = useRef(false);
 
-  // Health check function — can be called for retry
+  // Health check — public endpoint, no auth needed
   const checkHealth = useCallback(async () => {
     setIsChecking(true);
     try {
@@ -32,113 +36,61 @@ export function useBackend() {
     checkHealth();
   }, [checkHealth]);
 
-  // When backend becomes available: sync API keys + migrate channels from localStorage
+  // Fetch channels when backend becomes available
   useEffect(() => {
-    if (!isBackendAvailable || syncDone.current) return;
-    syncDone.current = true;
-
+    if (!isBackendAvailable) return;
     (async () => {
-      // 1. Sync API keys from localStorage to backend (in-memory)
-      const youtubeApiKey = getYouTubeApiKey();
-      const tiktokApiKey = getTikTokApiKey();
-
-      if (youtubeApiKey || tiktokApiKey) {
-        try {
-          await axios.post(`${BACKEND_URL}/api/settings`, {
-            youtubeApiKey,
-            tiktokApiKey,
-          });
-          console.log('[useBackend] API keys synced to backend');
-        } catch (err) {
-          console.warn('[useBackend] Failed to sync API keys:', err.message);
-        }
-      }
-
-      // 2. Fetch backend channels
-      let backendChannels = [];
       try {
-        const res = await axios.get(`${BACKEND_URL}/api/channels`);
-        backendChannels = res.data;
+        const headers = await getAuthHeaders();
+        const res = await axios.get(`${BACKEND_URL}/api/channels`, { headers });
+        setChannels(res.data);
       } catch (err) {
-        console.warn('[useBackend] Failed to fetch backend channels:', err.message);
-        return;
+        console.warn('[useBackend] Failed to fetch channels:', err.message);
       }
-
-      // 3. Migrate channels from localStorage that don't exist in backend yet (compare by identifier)
-      let localChannels = [];
-      try {
-        const stored = localStorage.getItem(CHANNELS_STORAGE_KEY);
-        if (stored) {
-          localChannels = JSON.parse(stored);
-        }
-      } catch {
-        // ignore parse errors
-      }
-
-      if (localChannels.length > 0) {
-        // Find channels in localStorage that are not yet in backend (by identifier)
-        const backendIdentifiers = new Set(backendChannels.map(ch => ch.identifier));
-        const toMigrate = localChannels.filter(ch => !backendIdentifiers.has(ch.identifier));
-
-        if (toMigrate.length > 0) {
-          console.log(`[useBackend] Migrating ${toMigrate.length} channel(s) from localStorage to backend...`);
-
-          for (const ch of toMigrate) {
-            try {
-              const res = await axios.post(`${BACKEND_URL}/api/channels`, {
-                type: ch.type,
-                name: ch.name,
-                identifier: ch.identifier,
-              });
-              backendChannels.push(res.data);
-              console.log(`  ✓ ${ch.name} (${ch.type})`);
-            } catch (err) {
-              console.warn(`  ✗ ${ch.name}: ${err.message}`);
-            }
-          }
-
-          console.log('[useBackend] Migration complete');
-        }
-      }
-
-      setChannels(backendChannels);
     })();
   }, [isBackendAvailable]);
 
   const fetchChannels = useCallback(async () => {
-    const res = await axios.get(`${BACKEND_URL}/api/channels`);
+    const headers = await getAuthHeaders();
+    const res = await axios.get(`${BACKEND_URL}/api/channels`, { headers });
     setChannels(res.data);
     return res.data;
   }, []);
 
   const fetchVideos = useCallback(async (channelId) => {
-    const res = await axios.get(`${BACKEND_URL}/api/channels/${channelId}/videos`);
+    const headers = await getAuthHeaders();
+    const res = await axios.get(`${BACKEND_URL}/api/channels/${channelId}/videos`, { headers });
     return res.data;
   }, []);
 
   const addChannel = useCallback(async ({ type, name, identifier }) => {
-    const res = await axios.post(`${BACKEND_URL}/api/channels`, { type, name, identifier });
+    const headers = await getAuthHeaders();
+    const res = await axios.post(`${BACKEND_URL}/api/channels`, { type, name, identifier }, { headers });
     setChannels(prev => [...prev, res.data]);
     return res.data;
   }, []);
 
   const deleteChannel = useCallback(async (id) => {
-    await axios.delete(`${BACKEND_URL}/api/channels/${id}`);
+    const headers = await getAuthHeaders();
+    await axios.delete(`${BACKEND_URL}/api/channels/${id}`, { headers });
     setChannels(prev => prev.filter(c => c.id !== id));
   }, []);
 
   const refresh = useCallback(async (type) => {
-    const res = await axios.post(`${BACKEND_URL}/api/refresh`, type ? { type } : {});
+    const headers = await getAuthHeaders();
+    const res = await axios.post(`${BACKEND_URL}/api/refresh`, type ? { type } : {}, { headers });
     return res.data;
   }, []);
 
   // Sync API keys to backend (called when user updates keys in settings)
   const syncApiKeys = useCallback(async () => {
     if (!isBackendAvailable) return;
-    const youtubeApiKey = getYouTubeApiKey();
-    const tiktokApiKey = getTikTokApiKey();
+    const { getStoredYouTubeKey, getStoredTikTokKey } = await import('../utils/apiKeys');
+    const youtubeApiKey = getStoredYouTubeKey();
+    const tiktokApiKey = getStoredTikTokKey();
     try {
-      await axios.post(`${BACKEND_URL}/api/settings`, { youtubeApiKey, tiktokApiKey });
+      const headers = await getAuthHeaders();
+      await axios.post(`${BACKEND_URL}/api/settings`, { youtubeApiKey, tiktokApiKey }, { headers });
     } catch (err) {
       console.warn('[useBackend] Failed to sync API keys:', err.message);
     }

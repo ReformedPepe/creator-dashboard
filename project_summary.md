@@ -1,165 +1,161 @@
-# Creator Stats Dashboard — Podsumowanie Projektu
+# Statflow — Podsumowanie Projektu
 
 ## Cel projektu
-Osobisty dashboard do śledzenia wyświetleń 3 ostatnich filmów z wielu kanałów YouTube i TikTok.
+Osobisty dashboard do śledzenia wyświetleń 3 ostatnich filmów z wielu kanałów YouTube i TikTok. Backend zbiera dane automatycznie co godzinę (YouTube) / 6 godzin (TikTok), niezależnie od tego czy przeglądarka jest otwarta.
 
 ## Tech Stack
 - **Frontend:** React 19 (Vite 8) + JavaScript
-- **Stylizacja:** Tailwind CSS v4 (CSS custom properties, dark mode via `html.dark` class)
+- **Backend:** Node.js + Express + better-sqlite3 + node-cron
+- **Stylizacja:** Tailwind CSS v4 (dark-only, CSS custom properties)
 - **Ikony:** Lucide React
 - **HTTP:** axios
-- **Dane:** localStorage (kanały, cache, klucze API, preferencje motywu)
+- **Dane:** SQLite (backend, źródło prawdy), localStorage (sparkline history, klucze API cache)
 - **API:** YouTube Data API v3, RapidAPI "Tiktok Scraper" (tiktok-scraper7.p.rapidapi.com)
 
-## Design System
-- Light/Dark mode (przełącznik Sun/Moon/Monitor w headerze)
-- Kolory akcentowe: niebieski (#3B82F6) → indigo (#6366F1)
-- Zaokrąglone rogi 20px, glassmorphism-lite, subtelne cienie
-- Responsywny layout (mobile-first)
+## Design System (Attio/Linear style)
+- **Ciemny motyw jako jedyny** — brak light mode
+- Tło: #0A0A0A z kropkowanym pattern (radial-gradient)
+- Sidebar: #111111, border #1E1E1E
+- Karty: #111111, border #1E1E1E, radius 12px, zero box-shadow
+- Karty filmów: #0F0F0F, border #1A1A1A, miniaturka po lewej (120px)
+- Kolor akcentu: czerwony #E53935 (przyciski, aktywne elementy, sparkline wzrost)
+- Typografia: Inter, labele text-xs tracking-widest uppercase text-zinc-600
+- Sidebar zwijany: 64px (ikony w kontenerach 36×36px) / 240px (ikony + tekst)
+- Kontener ikon: tło #1C1C1C, border #2A2A2A, aktywny: tło #E53935
+- Nazwa aplikacji: **Statflow**
 - Polski język w UI
+
+## Architektura
+
+### Frontend (React)
+- **App.jsx** — główny komponent, trzyma `videosMap` (dane filmów) w stanie, top-down data flow
+- **Pobieranie danych:** App.jsx fetchuje dane z backendu i przekazuje jako props do ChannelCard
+- **Auto-refresh:** setInterval co 2 minuty w App.jsx (cichy, bez spinnera)
+- **Ręczne odświeżanie:** klik "Odśwież" → czyści videosMap (spinner) → POST /api/refresh → 2s delay → fetch świeżych danych → aktualizacja widoku
+- **Backend jako jedyne źródło prawdy** — brak fallbacku do localStorage, ekran błędu gdy backend niedostępny
+
+### Backend (Node.js + Express)
+- **Folder:** `/server`
+- **Baza:** SQLite (server/data/dashboard.db) — tabele: channels, videos (z like_count, comment_count), snapshots
+- **Cron joby:** YouTube co godzinę (0 * * * *), TikTok co 6h (0 */6 * * *)
+- **Opóźniony start:** pierwsza kolekcja 5s po starcie serwera (czeka na sync kluczy z frontendu)
+- **API klucze:** persystowane w server/.env (POST /api/settings zapisuje do pliku)
+- **TikTok:** RapidAPI (nie cheerio scraping)
 
 ## Zrealizowane funkcjonalności (Status: ✅)
 
-### 1. Integracja YouTube
-- Pełna obsługa YouTube Data API v3
-- Rozwiązywanie handle (@nazwa) i linków URL na Channel ID
-- Pobieranie 3 ostatnich filmów z miniaturami i statystykami
-- Pobieranie statystyk kanału (subscriberCount, viewCount) — dodane `part=statistics` do channels request
-- Mapowanie likeCount i commentCount z videos/statistics
-- Brak limitu odświeżania (można odświeżać dowolnie często)
+### 1. Backend — zbieranie danych
+- Node.js + Express + better-sqlite3 + node-cron
+- Dwa osobne cron joby: YouTube co 1h, TikTok co 6h
+- Natychmiastowa kolekcja przy starcie (z 5s opóźnieniem na sync kluczy)
+- Niezależne przetwarzanie kanałów (błąd jednego nie blokuje innych)
+- Logi do konsoli przy każdym snapshot
+- REST API: GET/POST/DELETE /api/channels, GET /api/channels/:id/videos, POST /api/refresh, GET /api/health, POST /api/settings, GET /api/settings/status
 
-### 2. Integracja TikTok
-- API: RapidAPI "Tiktok Scraper" (tiktok-scraper7.p.rapidapi.com)
-- Endpoint: GET /user/posts?unique_id=USERNAME&count=3&cursor=0
-- Darmowy plan: 300 req/miesiąc bez karty płatniczej
-- Tryb automatyczny (username) + tryb ręczny (wklejanie do 3 URL-ów filmów)
-- Rate limit: max 1 odświeżenie TikToka na 60 minut (persystowany w localStorage)
-- Mapowanie digg_count → likeCount, comment_count → commentCount
-- Pobieranie statystyk kanału (follower_count, heart_count) z pola author lub fallback do /user/info
+### 2. Integracja YouTube (backend)
+- YouTube Data API v3 z kluczem z server/.env
+- Rozwiązywanie @handle na Channel ID
+- Pobieranie 3 ostatnich filmów z viewCount, likeCount, commentCount
+- Snapshoty zapisywane w SQLite przy każdej kolekcji
 
-### 3. Panel Ustawień (klucze API)
-- Modal dostępny przez ikonę ⚙️ w headerze
-- Dwa pola: YouTube API Key + TikTok RapidAPI Key
-- Maskowanie kluczy (Eye/EyeOff toggle)
-- Walidacja kluczy przed zapisem (testowe zapytanie do API)
-- Instrukcje krok po kroku pod każdym polem
-- Klucze w localStorage mają priorytet nad .env (Key Resolution Service)
-- Partial save: jeśli jeden klucz jest OK a drugi nie — zapisuje ten poprawny
+### 3. Integracja TikTok (backend)
+- RapidAPI "Tiktok Scraper" (tiktok-scraper7.p.rapidapi.com)
+- Endpoint: GET /user/posts?unique_id=USERNAME&count=3
+- Mapowanie: play_count → view_count, digg_count → like_count, comment_count
+- Kolekcja co 6 godzin (oszczędność limitu API)
 
-### 4. Licznik API TikTok
-- Badge "API TikTok: X / 300" w headerze
-- Odczyt nagłówków x-ratelimit-requests-remaining z odpowiedzi RapidAPI
-- Fallback: lokalna dekrementacja gdy nagłówki niedostępne
-- Miesięczny reset (automatyczny)
-- Trzy stany wizualne: neutralny (>50), ostrzegawczy (11-50), krytyczny (≤10)
+### 4. Synchronizacja frontend ↔ backend
+- useBackend.js — health check, migracja kanałów z localStorage, sync kluczy API
+- Migracja kanałów: porównuje po identifier, migruje tylko brakujące (nie tylko gdy backend pusty)
+- Sync kluczy: sprawdza GET /api/settings/status — wysyła klucze tylko gdy backend ich nie ma
+- Klucze persystowane w server/.env (przeżywają restart serwera)
 
-### 5. Dark Mode
-- Trzy tryby: Light / Dark / System (podąża za OS)
-- Przełącznik w headerze (Sun/Moon/Monitor)
-- CSS variables pod `html.dark` — zero zmian w komponentach
-- Blocking inline script w index.html (brak flashu przy ładowaniu)
-- Preferencja persystowana w localStorage
-- React Context + useTheme hook
-- Płynna tranzycja 200ms
+### 5. Nowy design (Attio/Linear style)
+- Sidebar zwijany z ikonami w kontenerach (PanelLeft/PanelRight toggle)
+- Nawigacja: Dashboard, Kanały, Ustawienia (osobne widoki)
+- Topbar: tytuł + przyciski akcji (Odśwież, Dodaj kanał)
+- Karty kanałów: ciemne, minimalistyczne, bez box-shadow
+- Karty filmów: miniaturka po lewej (120px), metryki po prawej
+- Badge % zmiany: tło rgba(229,57,53,0.1) dla wzrostu, rgba(100,116,139,0.1) dla spadku
+- Strona ustawień (nie modal) — klucze API + placeholder konta
+- Loading spinner podczas odświeżania (kręcące się kółko zamiast filmów)
+- Ekran błędu gdy backend niedostępny (WifiOff + "Spróbuj ponownie")
 
-### 6. Ręczne odświeżanie z rate limitem
-- Usunięty auto-refresh timer (brak automatycznego odświeżania)
-- Przycisk 🔄 do ręcznego odświeżenia
-- YouTube: odświeża się zawsze
-- TikTok: max raz na 60 min (cooldown persystowany w localStorage, przetrwa reload)
-- Wyświetlanie "Ostatnio: X min temu" zamiast odliczania
-- Info "TikTok: odśwież za X min" gdy cooldown aktywny
+### 6. Sparkline — wykresy trendu wyświetleń
+- Pure SVG (bez biblioteki chartingowej)
+- Wykres liniowy pod każdym filmem
+- Kolor wzrostu: #E53935 (czerwony akcent), spadek: #64748B, neutralny: #333
+- Przełącznik zakresu: 1h / 12h / 24h / Wszystko
+- Badge procentowy z kolorowym tłem
+- Snapshoty z localStorage (useViewHistory hook)
 
 ### 7. Zarządzanie kanałami
-- Dodawanie/edycja/usuwanie kanałów przez boczny panel (ChannelManager)
-- Obsługa: username, @handle, pełne URL-e (YouTube i TikTok)
-- TikTok: przełącznik "Automatyczne" / "Ręczne" (3 pola na URL-e)
-- Dane kanałów w localStorage
-- Przy usunięciu kanału — automatyczne czyszczenie historii wyświetleń (view history)
+- Dodawanie/usuwanie kanałów przez modal (ChannelManager)
+- Obsługa: username, @handle, pełne URL-e
+- Dane kanałów w SQLite (backend)
+- Migracja z localStorage przy pierwszym połączeniu z backendem
 
-### 8. Sparkline — wykresy trendu wyświetleń
-- Pure SVG (bez biblioteki chartingowej) — 0 KB dodatkowych zależności
-- Wykres liniowy pod każdym filmem (100% × 32px)
-- Kolorowy wskaźnik trendu: zielony (wzrost ≥1%), czerwony (spadek ≥1%), szary (stagnacja)
-- Gradient fill pod linią (opacity 0.1)
-- Animacja rysowania linii (stroke-dashoffset, 300ms ease-out)
-- Tooltip pod wykresem przy hoverze (viewCount + data DD.MM.YYYY HH:mm)
-- Legenda kolorów nad filmami (wzrost / stabilnie / spadek)
-- Przełącznik zakresu czasowego: 1h / 12h / 24h / Wszystko
-- Komunikat "Zbieranie danych trendu…" gdy brak wystarczających danych
-- Snapshoty zapisywane przy każdym odświeżeniu (max 50 na film)
-- Usunięty seed point — pierwszy zapis to prawdziwy odczyt z API (nie viewCount=0)
-- Cleanup seed pointów przy starcie aplikacji (automatyczne usuwanie viewCount=0 z localStorage)
-- Procent zmiany liczony między najstarszym a najnowszym snapshotem w wybranym zakresie
-- Badge procentowy obok sparkline (+12,3% / -3,1% / 0%) w kolorze trendu
-- Obsługa QuotaExceededError (prune 25% najstarszych punktów, retry max 3×)
-
-### 9. Statystyki kanału i metryki filmów
-- Statystyki kanału w nagłówku ChannelCard:
-  - YouTube: subskrybenci + łączne wyświetlenia
-  - TikTok: obserwujący + polubienia
-  - Ikony Users + Eye, formatowanie formatViewCount
-  - Graceful degradation (brak sekcji gdy dane niedostępne)
-- Polubienia i komentarze na kartach filmów:
-  - Ikony ThumbsUp + MessageCircle
-  - Formatowanie formatViewCount, fallback do "0" gdy null
-- Badge procentowej zmiany:
-  - Format polski (przecinek jako separator dziesiętny): "+12,3%", "-3,1%", "0%"
-  - Kolory: zielony (≥1%), czerwony (≤-1%), szary (neutralny)
-  - Wyświetlany tylko gdy ≥2 snapshoty w wybranym zakresie czasowym
+### 8. Odświeżanie danych
+- Przycisk "Odśwież" → POST /api/refresh (tylko YouTube) → spinner → świeże dane
+- Auto-refresh co 2 minuty (cichy, bez spinnera)
+- TikTok odświeża się tylko automatycznie co 6h przez cron
 
 ## Architektura plików
 
 ```
 src/
-├── App.jsx                    — główny komponent, stan aplikacji
-├── main.jsx                   — entry point, ThemeProvider, cleanupSeedPoints
-├── index.css                  — CSS variables (light + dark), globalne style, animacje sparkline
+├── App.jsx                    — główny komponent, videosMap state, fetchAllVideos, top-down data flow
+├── main.jsx                   — entry point, cleanupSeedPoints
+├── index.css                  — dark-only design system, dotted-bg pattern
 ├── components/
-│   ├── Header.jsx             — nagłówek z akcjami
-│   ├── Layout.jsx             — wrapper layoutu
-│   ├── ChannelCard.jsx        — karta kanału z filmami + statystyki kanału + przełącznik zakresu
+│   ├── Sidebar.jsx            — zwijany sidebar (64px/240px), nawigacja, logo
+│   ├── Topbar.jsx             — tytuł strony + przyciski akcji
+│   ├── ChannelCard.jsx        — karta kanału (prezentacyjna, videos jako prop)
 │   ├── ChannelManager.jsx     — modal dodawania/edycji kanałów
-│   ├── VideoCard.jsx          — karta filmu (views, likes, comments, sparkline, badge %)
-│   ├── SparklineChart.jsx     — pure SVG sparkline z tooltipem i animacją
-│   ├── RefreshStatus.jsx      — "Ostatnio: X min temu" + przycisk refresh
-│   ├── ApiUsageCounter.jsx    — badge "API TikTok: X / 300"
-│   ├── ThemeToggle.jsx        — przełącznik motywu
-│   ├── SettingsPanel.jsx      — modal ustawień kluczy API
+│   ├── VideoCard.jsx          — karta filmu (miniaturka po lewej, metryki po prawej)
+│   ├── SparklineChart.jsx     — pure SVG sparkline
+│   ├── SettingsPage.jsx       — strona ustawień (klucze API + konto placeholder)
 │   ├── EmptyState.jsx         — widok gdy brak kanałów
 │   ├── ErrorBanner.jsx        — banner błędów
 │   └── LoadingSkeleton.jsx    — skeleton loading
 ├── hooks/
-│   ├── useChannelData.js      — fetch danych kanału + channelStats + rate limit TikTok
-│   ├── useChannels.js         — CRUD kanałów (localStorage) + cleanup view history
-│   ├── useViewHistory.js      — ładowanie historii wyświetleń + trend
+│   ├── useBackend.js          — komunikacja z backendem, health check, migracja, sync kluczy
+│   ├── useChannelData.js      — (legacy, nieużywany przez ChannelCard)
+│   ├── useViewHistory.js      — ładowanie historii wyświetleń + trend (localStorage)
 │   └── useApiUsage.js         — reaktywny stan licznika API
-├── context/
-│   └── ThemeContext.jsx       — React Context dla dark mode
 ├── test/
 │   └── setup.js               — @testing-library/jest-dom setup
 └── utils/
-    ├── youtube.js             — YouTube Data API v3 client (videos + channel stats)
-    ├── tiktok.js              — TikTok RapidAPI client (videos + channel stats)
+    ├── youtube.js             — YouTube Data API v3 client (frontend, legacy)
+    ├── tiktok.js              — TikTok RapidAPI client (frontend, legacy)
     ├── viewHistory.js         — History Store (snapshoty w localStorage, max 50/film)
     ├── trendCalculator.js     — obliczanie trendu (up/down/neutral, % change)
     ├── apiKeys.js             — Key Resolution Service (localStorage > .env)
     ├── apiTracker.js          — śledzenie zużycia API TikTok
-    ├── rateLimiter.js         — TikTok 60-min cooldown
+    ├── rateLimiter.js         — TikTok 6h cooldown (legacy, frontend-only)
     ├── storage.js             — localStorage helpers
     └── formatters.js          — formatowanie liczb, dat, czasu, procentów
-```
 
-## Klucze API (localStorage)
-- `creator-dashboard-youtube-api-key` — klucz YouTube
-- `creator-dashboard-tiktok-api-key` — klucz TikTok RapidAPI
-- `creator-dashboard-tiktok-api-usage` — dane o zużyciu API (remaining, limit, month, year)
-- `creator-dashboard-tiktok-last-refresh` — timestamp ostatniego fetcha TikTok
-- `creator-dashboard-last-refresh` — timestamp ostatniego odświeżenia ogólnego
-- `creator-dashboard-theme` — preferencja motywu (light/dark/system)
-- `creator-dashboard-channels` — lista kanałów
-- `creator-dashboard-data-{channelId}` — cache danych kanału (videos + channelStats)
-- `creator-dashboard-view-history-{videoId}` — historia wyświetleń filmu (max 50 snapshotów)
+server/
+├── index.js                   — Express app, middleware, cron scheduling, delayed start
+├── package.json               — dependencies (better-sqlite3, axios, cheerio, cors, dotenv, express, node-cron)
+├── .env                       — YOUTUBE_API_KEY, TIKTOK_RAPIDAPI_KEY, PORT
+├── data/
+│   └── dashboard.db           — SQLite database (gitignored)
+├── db/
+│   └── index.js               — better-sqlite3 init, schema, WAL mode, migrations
+├── routes/
+│   ├── channels.js            — GET/POST/DELETE /api/channels
+│   ├── videos.js              — GET /api/channels/:id/videos
+│   ├── refresh.js             — POST /api/refresh (z filtrem type), GET /api/health
+│   └── settings.js            — POST /api/settings, GET /api/settings/status
+├── services/
+│   ├── youtube.js             — YouTube Data API v3 (viewCount, likeCount, commentCount)
+│   ├── tiktok.js              — TikTok RapidAPI (play_count, digg_count, comment_count)
+│   └── settings.js            — in-memory + .env persistence dla kluczy API
+└── cron/
+    └── collector.js           — collectAll, collectYouTube, collectTikTok, per-channel isolation
+```
 
 ## Testy
 - **Framework:** Vitest + fast-check + @testing-library/react
@@ -168,12 +164,16 @@ src/
 
 ## Deployment
 - **Repozytorium:** https://github.com/ReformedPepe/creator-dashboard
-- **Hosting:** Render.com (połączone z GitHub)
+- **Backend:** Render.com (https://creator-dashboard-jztf.onrender.com)
+- **Frontend:** lokalnie (npm run dev) — docelowo Vercel
+- **Monitoring:** UptimeRobot pinguje backend co 5 minut (zapobiega uśpieniu free tier Rendera)
 
 ## Co dalej (następne kroki)
-1. **Backend (Node.js + Express + SQLite + node-cron)** — serwer w folderze `/server` zbierający snapshoty co godzinę w tle, niezależnie od tego czy użytkownik ma otwartą aplikację
-2. Porównanie kanałów — podsumowanie na górze (łączne views, najlepszy film)
-3. Sortowanie i filtrowanie filmów
-4. Powiadomienia o milestones (10k, 100k, 1M)
-5. Eksport danych (CSV/JSON)
-6. Widok "Best of" — ranking filmów ze wszystkich kanałów
+1. **Supabase** — rejestracja/logowanie (email+hasło, Google, GitHub), każdy użytkownik ma swoje kanały i klucze API, dane przeżywają restarty Rendera
+2. **Deploy frontendu na Vercel** — produkcyjny hosting z custom domeną
+3. **Liczniki odliczające** — do następnego odświeżenia YouTube (1h) i TikTok (6h)
+4. **Paginacja filmów** — więcej niż 3 filmy na kanał
+5. Porównanie kanałów — podsumowanie na górze (łączne views, najlepszy film)
+6. Sortowanie i filtrowanie filmów
+7. Powiadomienia o milestones (10k, 100k, 1M)
+8. Eksport danych (CSV/JSON)

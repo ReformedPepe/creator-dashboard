@@ -10,7 +10,7 @@ import {
   validateTikTokKey,
 } from '../utils/apiKeys';
 
-export default function SettingsPage({ onKeysSaved }) {
+export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [youtubeKey, setYoutubeKey] = useState('');
   const [tiktokKey, setTiktokKey] = useState('');
   const [showYoutubeKey, setShowYoutubeKey] = useState(false);
@@ -178,10 +178,17 @@ export default function SettingsPage({ onKeysSaved }) {
           </h2>
         </div>
 
-        <div className="rounded-xl border border-border bg-bg-card p-6">
-          <p className="text-sm text-text-muted">
-            Logowanie dostępne wkrótce. Dane są przechowywane lokalnie na serwerze.
-          </p>
+        <div className="rounded-xl border border-border bg-bg-card p-6 space-y-4">
+          <div>
+            <p className="text-xs text-text-muted mb-1">Email</p>
+            <p className="text-sm text-text-primary">{user?.email || '—'}</p>
+          </div>
+          <button
+            onClick={onSignOut}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-[#1C1C1C] transition-colors cursor-pointer"
+          >
+            Wyloguj
+          </button>
         </div>
       </section>
     </div>

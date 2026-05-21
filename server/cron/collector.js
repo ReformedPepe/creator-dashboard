@@ -1,120 +1,174 @@
-// cron/collector.js
-const db = require('../db');
+// cron/collector.js — per-user data collection via Supabase
+const { supabase } = require('../lib/supabase');
 const { fetchYouTubeVideos } = require('../services/youtube');
 const { fetchTikTokVideos } = require('../services/tiktok');
-const { getYouTubeApiKey } = require('../services/settings');
-
-// Prepared statements for performance
-const upsertVideo = db.prepare(`
-  INSERT INTO videos (channel_id, video_id, title, thumbnail, published_at, updated_at, like_count, comment_count)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(channel_id, video_id) DO UPDATE SET
-    title = excluded.title,
-    thumbnail = excluded.thumbnail,
-    updated_at = excluded.updated_at,
-    like_count = excluded.like_count,
-    comment_count = excluded.comment_count
-`);
-
-const insertSnapshot = db.prepare(
-  'INSERT INTO snapshots (video_id, view_count, timestamp) VALUES (?, ?, ?)'
-);
-
-const getVideoId = db.prepare(
-  'SELECT id FROM videos WHERE channel_id = ? AND video_id = ?'
-);
-
-const getAllChannels = db.prepare('SELECT * FROM channels');
 
 /**
- * Collects data for a single channel — fetches videos, upserts them, and inserts snapshots.
- * @param {object} channel — channel row from the database
- * @returns {Promise<{channel: string, status: string, videosProcessed?: number, reason?: string}>}
+ * Get all distinct user IDs that have channels.
  */
-async function collectForChannel(channel) {
+async function getUserIds() {
+  const { data, error } = await supabase
+    .from('channels')
+    .select('user_id');
+
+  if (error) {
+    console.error('[cron] Failed to fetch user IDs:', error.message);
+    return [];
+  }
+
+  // Deduplicate
+  const unique = [...new Set(data.map(row => row.user_id))];
+  return unique;
+}
+
+/**
+ * Get API keys for a specific user.
+ */
+async function getUserKeys(userId) {
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('youtube_api_key, tiktok_api_key')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) {
+    return { youtubeApiKey: null, tiktokApiKey: null };
+  }
+
+  return {
+    youtubeApiKey: data.youtube_api_key || null,
+    tiktokApiKey: data.tiktok_api_key || null,
+  };
+}
+
+/**
+ * Get channels for a specific user, optionally filtered by type.
+ */
+async function getUserChannels(userId, filterType) {
+  let query = supabase
+    .from('channels')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (filterType) {
+    query = query.eq('type', filterType);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`[cron] Failed to fetch channels for user ${userId}:`, error.message);
+    return [];
+  }
+
+  return data;
+}
+
+/**
+ * Upsert a video and insert a snapshot into Supabase.
+ */
+async function saveVideoAndSnapshot(channelId, video) {
+  // Upsert video
+  const { data: videoRow, error: videoError } = await supabase
+    .from('videos')
+    .upsert(
+      {
+        channel_id: channelId,
+        video_id: video.video_id,
+        title: video.title,
+        thumbnail: video.thumbnail,
+        published_at: video.published_at || null,
+        updated_at: new Date().toISOString(),
+        like_count: video.like_count || 0,
+        comment_count: video.comment_count || 0,
+      },
+      { onConflict: 'channel_id,video_id' }
+    )
+    .select('id')
+    .single();
+
+  if (videoError) {
+    console.error(`[cron] Failed to upsert video ${video.video_id}:`, videoError.message);
+    return;
+  }
+
+  // Insert snapshot
+  const { error: snapError } = await supabase
+    .from('snapshots')
+    .insert({
+      video_id: videoRow.id,
+      view_count: video.view_count,
+      timestamp: Date.now(),
+    });
+
+  if (snapError) {
+    console.error(`[cron] Failed to insert snapshot for ${video.video_id}:`, snapError.message);
+  }
+}
+
+/**
+ * Collects data for a single channel using provided API keys.
+ */
+async function collectForChannel(channel, keys) {
   let videos;
 
   if (channel.type === 'youtube') {
-    const apiKey = getYouTubeApiKey();
-    if (!apiKey) {
-      console.warn(`[cron] Skipping YouTube channel "${channel.name}" — no YOUTUBE_API_KEY`);
+    if (!keys.youtubeApiKey) {
+      console.warn(`[cron] Skipping YouTube channel "${channel.name}" — no API key for user`);
       return { channel: channel.name, status: 'skipped', reason: 'no API key' };
     }
-    videos = await fetchYouTubeVideos(channel.identifier, apiKey);
+    videos = await fetchYouTubeVideos(channel.identifier, keys.youtubeApiKey);
   } else if (channel.type === 'tiktok') {
-    videos = await fetchTikTokVideos(channel.identifier);
+    if (!keys.tiktokApiKey) {
+      console.warn(`[cron] Skipping TikTok channel "${channel.name}" — no API key for user`);
+      return { channel: channel.name, status: 'skipped', reason: 'no API key' };
+    }
+    videos = await fetchTikTokVideos(channel.identifier, keys.tiktokApiKey);
   } else {
     return { channel: channel.name, status: 'skipped', reason: `unknown type: ${channel.type}` };
   }
 
-  const now = Date.now();
-
-  // Use a transaction for atomicity — upsert videos + insert snapshots together
-  const processVideos = db.transaction((vids) => {
-    for (const v of vids) {
-      upsertVideo.run(
-        channel.id,
-        v.video_id,
-        v.title,
-        v.thumbnail,
-        v.published_at || null,
-        new Date().toISOString(),
-        v.like_count || 0,
-        v.comment_count || 0
-      );
-
-      const dbVideo = getVideoId.get(channel.id, v.video_id);
-      insertSnapshot.run(dbVideo.id, v.view_count, now);
-
-      console.log(`  [${channel.name}] ${v.title} — ${v.view_count.toLocaleString()} views`);
-    }
-  });
-
-  processVideos(videos);
+  for (const v of videos) {
+    await saveVideoAndSnapshot(channel.id, v);
+    console.log(`  [${channel.name}] ${v.title} — ${v.view_count.toLocaleString()} views`);
+  }
 
   return { channel: channel.name, status: 'ok', videosProcessed: videos.length };
 }
 
 /**
- * Collects data for all registered channels.
- * Iterates channels sequentially, isolating errors per channel with try/catch.
- * @param {string} [filterType] — optional: 'youtube' or 'tiktok' to collect only that type
- * @returns {Promise<Array<{channel: string, status: string, videosProcessed?: number, error?: string}>>}
+ * Collects data for all users and their channels.
+ * @param {string} [filterType] — optional: 'youtube' or 'tiktok'
  */
 async function collectAll(filterType) {
-  const allChannels = getAllChannels.all();
-  const channels = filterType
-    ? allChannels.filter(ch => ch.type === filterType)
-    : allChannels;
+  const userIds = await getUserIds();
+  console.log(`[cron] Starting collection for ${userIds.length} user(s), filter: ${filterType || 'all'}...`);
 
-  console.log(`[cron] Starting collection for ${channels.length} ${filterType || 'all'} channel(s)...`);
+  const allResults = [];
 
-  const results = [];
+  for (const userId of userIds) {
+    const keys = await getUserKeys(userId);
+    const channels = await getUserChannels(userId, filterType);
 
-  for (const channel of channels) {
-    try {
-      const result = await collectForChannel(channel);
-      results.push(result);
-    } catch (err) {
-      console.error(`[cron] Error collecting "${channel.name}":`, err.message);
-      results.push({ channel: channel.name, status: 'error', error: err.message });
+    for (const channel of channels) {
+      try {
+        const result = await collectForChannel(channel, keys);
+        allResults.push(result);
+      } catch (err) {
+        console.error(`[cron] Error collecting "${channel.name}":`, err.message);
+        allResults.push({ channel: channel.name, status: 'error', error: err.message });
+      }
     }
   }
 
-  console.log(`[cron] Collection complete. Results:`, results);
-  return results;
+  console.log(`[cron] Collection complete. ${allResults.length} channel(s) processed.`);
+  return allResults;
 }
 
-/**
- * Collect only YouTube channels.
- */
 async function collectYouTube() {
   return collectAll('youtube');
 }
 
-/**
- * Collect only TikTok channels.
- */
 async function collectTikTok() {
   return collectAll('tiktok');
 }
