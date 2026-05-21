@@ -10,10 +10,17 @@ import SettingsPage from './components/SettingsPage';
 import LandingPage from './components/LandingPage';
 import { useBackend } from './hooks/useBackend';
 import { useAuth } from './hooks/useAuth';
+import { supabase } from './lib/supabase';
 import { saveLastRefresh } from './utils/storage';
 import { saveSnapshots } from './utils/viewHistory';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return {};
+  return { Authorization: `Bearer ${session.access_token}` };
+}
 
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -52,10 +59,11 @@ export default function App() {
 
     if (showLoading) setVideosLoading(true);
 
+    const headers = await getAuthHeaders();
     const newMap = {};
     for (const ch of channels) {
       try {
-        const res = await axios.get(`${BACKEND_URL}/api/channels/${ch.id}/videos`);
+        const res = await axios.get(`${BACKEND_URL}/api/channels/${ch.id}/videos`, { headers });
         const backendVideos = res.data;
 
         newMap[ch.id] = backendVideos.map(v => ({
@@ -119,10 +127,11 @@ export default function App() {
 
     // Fetch fresh data from backend
     if (channels.length > 0) {
+      const headers = await getAuthHeaders();
       const newMap = {};
       for (const ch of channels) {
         try {
-          const res = await axios.get(`${BACKEND_URL}/api/channels/${ch.id}/videos`);
+          const res = await axios.get(`${BACKEND_URL}/api/channels/${ch.id}/videos`, { headers });
           const backendVideos = res.data;
           newMap[ch.id] = backendVideos.map(v => ({
             id: v.video_id,

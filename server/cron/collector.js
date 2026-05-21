@@ -108,6 +108,7 @@ async function saveVideoAndSnapshot(channelId, video) {
 
 /**
  * Collects data for a single channel using provided API keys.
+ * After upserting the latest 3 videos, removes any older videos for this channel.
  */
 async function collectForChannel(channel, keys) {
   let videos;
@@ -131,6 +132,26 @@ async function collectForChannel(channel, keys) {
   for (const v of videos) {
     await saveVideoAndSnapshot(channel.id, v);
     console.log(`  [${channel.name}] ${v.title} — ${v.view_count.toLocaleString()} views`);
+  }
+
+  // Cleanup: remove videos that are no longer in the latest 3
+  const currentVideoIds = videos.map(v => v.video_id);
+  if (currentVideoIds.length > 0) {
+    // Get all videos for this channel that are NOT in the current set
+    const { data: oldVideos, error: fetchOldErr } = await supabase
+      .from('videos')
+      .select('id, video_id')
+      .eq('channel_id', channel.id)
+      .not('video_id', 'in', `(${currentVideoIds.join(',')})`);
+
+    if (!fetchOldErr && oldVideos && oldVideos.length > 0) {
+      const oldIds = oldVideos.map(v => v.id);
+      // Delete snapshots for old videos first
+      await supabase.from('snapshots').delete().in('video_id', oldIds);
+      // Delete old videos
+      await supabase.from('videos').delete().in('id', oldIds);
+      console.log(`  [${channel.name}] Cleaned up ${oldVideos.length} old video(s)`);
+    }
   }
 
   return { channel: channel.name, status: 'ok', videosProcessed: videos.length };
