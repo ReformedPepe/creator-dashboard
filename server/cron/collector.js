@@ -98,7 +98,7 @@ async function saveVideoAndSnapshot(channelId, video) {
     .insert({
       video_id: videoRow.id,
       view_count: video.view_count,
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
     });
 
   if (snapError) {
