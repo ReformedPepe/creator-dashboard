@@ -141,16 +141,19 @@ async function getUserApiKey(userId) {
 }
 
 /**
- * Gets existing video_ids for a channel from the database.
+ * Gets the published_at of the newest video in the database for a channel.
+ * Returns null if no videos exist.
  */
-async function getExistingVideoIds(channelId) {
+async function getNewestVideoDate(channelId) {
   const { data, error } = await supabase
     .from('videos')
-    .select('video_id')
-    .eq('channel_id', channelId);
+    .select('published_at')
+    .eq('channel_id', channelId)
+    .order('published_at', { ascending: false })
+    .limit(1);
 
-  if (error || !data) return new Set();
-  return new Set(data.map(v => v.video_id));
+  if (error || !data || data.length === 0) return null;
+  return data[0].published_at;
 }
 
 /**
@@ -232,16 +235,22 @@ async function discoverNewVideos() {
       const latestIds = await fetchLatestVideoIds(playlistId, apiKey);
       if (latestIds.length === 0) continue;
 
-      // Compare with existing videos in DB
-      const existingIds = await getExistingVideoIds(channel.id);
-      const newIds = latestIds.filter(id => !existingIds.has(id));
+      // Get the published_at of the newest video already in DB
+      const newestDate = await getNewestVideoDate(channel.id);
 
-      if (newIds.length === 0) continue;
+      // Fetch details for all latest videos to check their published_at
+      const allVideos = await fetchVideoDetails(latestIds, apiKey);
 
-      console.log(`[discovery] Found ${newIds.length} new video(s) for "${channel.name}"`);
+      // Only keep videos published AFTER the newest one in DB
+      const newVideos = newestDate
+        ? allVideos.filter(v => v.published_at && new Date(v.published_at) > new Date(newestDate))
+        : allVideos; // No videos in DB yet — add all
 
-      // Fetch details and save new videos
-      const newVideos = await fetchVideoDetails(newIds, apiKey);
+      if (newVideos.length === 0) continue;
+
+      console.log(`[discovery] Found ${newVideos.length} new video(s) for "${channel.name}"`);
+
+      // Save new videos
       for (const video of newVideos) {
         await saveNewVideo(channel.id, video);
         console.log(`  [discovery] Added: "${video.title}" (${video.view_count.toLocaleString()} views)`);

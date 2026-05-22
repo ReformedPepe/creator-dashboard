@@ -1,6 +1,6 @@
 // ChannelCard — karta kanału z loading spinner i zwijaniem
 import { useState, useRef, useEffect } from 'react';
-import { Play, Music, Settings, Loader2, ChevronDown, Users, Eye, Film, Heart } from 'lucide-react';
+import { Play, Music, Settings, Loader2, ChevronDown, Users, Eye, Film, Heart, Clock } from 'lucide-react';
 import { formatViewCount } from '../utils/formatters';
 import VideoCard from './VideoCard';
 
@@ -11,8 +11,88 @@ const TIME_RANGES = [
   { label: 'Wszystko', ms: Infinity },
 ];
 
+// Refresh intervals per platform
+const REFRESH_INTERVAL = {
+  youtube: 60 * 60 * 1000,      // 1 hour
+  tiktok: 6 * 60 * 60 * 1000,   // 6 hours
+};
+
 function getCollapseKey(channelId) {
   return `statflow-collapsed-${channelId}`;
+}
+
+/**
+ * Safely decode a URI-encoded string. Returns original on failure.
+ */
+function safeDecodeURI(str) {
+  try {
+    return decodeURIComponent(str);
+  } catch {
+    return str;
+  }
+}
+
+/**
+ * Gets the latest snapshot timestamp from videos data.
+ * Finds MAX(timestamp) across all snapshots of all videos.
+ * Returns null if no snapshots found.
+ */
+function getLatestSnapshotTimestamp(videos) {
+  if (!videos || videos.length === 0) return null;
+
+  let latest = 0;
+  for (const video of videos) {
+    const snaps = video._backendSnapshots;
+    if (snaps && snaps.length > 0) {
+      for (const snap of snaps) {
+        const ts = typeof snap.timestamp === 'string'
+          ? new Date(snap.timestamp).getTime()
+          : snap.timestamp;
+        if (ts > latest) latest = ts;
+      }
+    }
+  }
+
+  return latest > 0 ? latest : null;
+}
+
+/**
+ * Formats remaining milliseconds as "MM:SS"
+ */
+function formatCountdown(ms) {
+  if (ms <= 0) return '00:00';
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
+ * Countdown timer hook
+ */
+function useCountdown(targetTimestamp) {
+  const [remaining, setRemaining] = useState(() => {
+    if (!targetTimestamp) return null;
+    return Math.max(0, targetTimestamp - Date.now());
+  });
+
+  useEffect(() => {
+    if (!targetTimestamp) {
+      setRemaining(null);
+      return;
+    }
+
+    const update = () => {
+      const diff = targetTimestamp - Date.now();
+      setRemaining(Math.max(0, diff));
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [targetTimestamp]);
+
+  return remaining;
 }
 
 export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKey, onGoToSettings }) {
@@ -29,6 +109,13 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
 
   const isYoutube = channel.type === 'youtube';
   const PlatformIcon = isYoutube ? Play : Music;
+
+  // Calculate next refresh timestamp
+  const latestSnapshot = getLatestSnapshotTimestamp(videos);
+  const nextRefreshAt = latestSnapshot
+    ? latestSnapshot + REFRESH_INTERVAL[channel.type]
+    : null;
+  const remaining = useCountdown(nextRefreshAt);
 
   // Measure content height for smooth animation
   useEffect(() => {
@@ -60,7 +147,7 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
               {channel.name}
             </h3>
             <p className="text-[11px] text-[#888] font-mono">
-              {channel.identifier}
+              {safeDecodeURI(channel.identifier)}
             </p>
             {/* Channel stats */}
             {(channel.subscriber_count > 0 || channel.follower_count > 0) && (
@@ -99,6 +186,13 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Countdown timer */}
+          {remaining !== null && remaining > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-[#555] mr-1" title="Czas do następnego odświeżenia">
+              <Clock className="h-3 w-3" />
+              {formatCountdown(remaining)}
+            </span>
+          )}
           <button
             onClick={toggleCollapse}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1C1C1C] border border-[#2A2A2A] text-[#888] hover:text-white hover:bg-[#252525] transition-colors cursor-pointer"
