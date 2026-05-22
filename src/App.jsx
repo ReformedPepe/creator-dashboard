@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Play, Music, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
+import { WifiOff, RefreshCw, Loader2, Play, Music } from 'lucide-react';
 import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import EmptyState from './components/EmptyState';
 import ChannelManager from './components/ChannelManager';
 import ChannelCard from './components/ChannelCard';
+import SortableChannelList from './components/SortableChannelList';
 import SettingsPage from './components/SettingsPage';
 import LandingPage from './components/LandingPage';
 import { useBackend } from './hooks/useBackend';
@@ -263,15 +264,16 @@ export default function App() {
 
       <main className={`min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
         <div className="dotted-bg min-h-screen p-6">
+          {/* Topbar — always rendered first, same position regardless of view */}
+          <Topbar
+            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : 'Ustawienia'}
+            onRefresh={(currentView === 'dashboard' || currentView === 'channels') ? handleManualRefresh : undefined}
+            onAddChannel={(currentView === 'dashboard' || currentView === 'channels') ? openAddModal : undefined}
+            isRefreshing={isRefreshing}
+          />
+
           {(currentView === 'dashboard' || currentView === 'channels') && (
             <>
-              <Topbar
-                title={currentView === 'dashboard' ? 'Dashboard' : 'Kanały'}
-                onRefresh={handleManualRefresh}
-                onAddChannel={openAddModal}
-                isRefreshing={isRefreshing}
-              />
-
               {channels.length === 0 ? (
                 <EmptyState onAddChannel={openAddModal} />
               ) : (
@@ -283,19 +285,15 @@ export default function App() {
                         <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">YouTube</span>
                         <span className="text-[11px] text-[#52525B]">({youtubeChannels.length})</span>
                       </div>
-                      <div className="space-y-4">
-                        {youtubeChannels.map((channel) => (
-                          <ChannelCard
-                            key={channel.id}
-                            channel={channel}
-                            videos={videosMap[channel.id] || null}
-                            loading={videosLoading}
-                            onEdit={openEditModal}
-                            hasApiKey={keyStatus.youtubeKeySet}
-                            onGoToSettings={() => setCurrentView('settings')}
-                          />
-                        ))}
-                      </div>
+                      <SortableChannelList
+                        channels={youtubeChannels}
+                        videosMap={videosMap}
+                        videosLoading={videosLoading}
+                        onEdit={openEditModal}
+                        keyStatus={keyStatus}
+                        onGoToSettings={() => setCurrentView('settings')}
+                        storageKey="statflow-channels-order-youtube"
+                      />
                     </section>
                   )}
 
@@ -306,19 +304,15 @@ export default function App() {
                         <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">TikTok</span>
                         <span className="text-[11px] text-[#52525B]">({tiktokChannels.length})</span>
                       </div>
-                      <div className="space-y-4">
-                        {tiktokChannels.map((channel) => (
-                          <ChannelCard
-                            key={channel.id}
-                            channel={channel}
-                            videos={videosMap[channel.id] || null}
-                            loading={videosLoading}
-                            onEdit={openEditModal}
-                            hasApiKey={keyStatus.tiktokKeySet}
-                            onGoToSettings={() => setCurrentView('settings')}
-                          />
-                        ))}
-                      </div>
+                      <SortableChannelList
+                        channels={tiktokChannels}
+                        videosMap={videosMap}
+                        videosLoading={videosLoading}
+                        onEdit={openEditModal}
+                        keyStatus={keyStatus}
+                        onGoToSettings={() => setCurrentView('settings')}
+                        storageKey="statflow-channels-order-tiktok"
+                      />
                     </section>
                   )}
                 </div>
@@ -327,10 +321,9 @@ export default function App() {
           )}
 
           {currentView === 'settings' && (
-            <>
-              <Topbar title="Ustawienia" />
+            <div className="space-y-6">
               <SettingsPage onKeysSaved={syncApiKeys} user={user} onSignOut={signOut} />
-            </>
+            </div>
           )}
         </div>
       </main>

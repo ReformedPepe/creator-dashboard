@@ -1,4 +1,5 @@
 // SettingsPage — strona ustawień (klucze API + konto)
+// Layout identyczny z Dashboard: te same klasy, marginesy, paddingi
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Check, Loader2, Key, User } from 'lucide-react';
 import axios from 'axios';
@@ -25,7 +26,6 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [youtubeError, setYoutubeError] = useState('');
   const [tiktokError, setTiktokError] = useState('');
   const [backendKeyStatus, setBackendKeyStatus] = useState(null);
-  // Track whether user is editing (clicked into field) vs showing masked value
   const [youtubeEditing, setYoutubeEditing] = useState(false);
   const [tiktokEditing, setTiktokEditing] = useState(false);
 
@@ -37,12 +37,9 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       setBackendKeyStatus(res.data);
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
-  // Load keys from localStorage and check backend status
   useEffect(() => {
     const localYt = getStoredYouTubeKey();
     const localTt = getStoredTikTokKey();
@@ -101,7 +98,6 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
       }
 
       if (onKeysSaved) onKeysSaved();
-      // Refresh masked keys from backend
       await fetchKeyStatus();
       setYoutubeEditing(false);
       setTiktokEditing(false);
@@ -113,20 +109,18 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   };
 
   return (
-    <div className="max-w-2xl space-y-8">
-      {/* API Keys Section */}
+    <div className="space-y-6">
+      {/* API Keys Section — same structure as YouTube/TikTok sections on Dashboard */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
-          <Key className="h-4 w-4 text-accent" />
-          <h2 className="text-xs font-semibold tracking-widest uppercase text-text-muted">
-            Klucze API
-          </h2>
+        <div className="mb-3 flex items-center gap-2">
+          <Key className="h-3.5 w-3.5 text-accent" />
+          <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">Klucze API</span>
         </div>
 
-        <div className="rounded-xl border border-border bg-bg-card p-6 space-y-5">
+        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5 space-y-5">
           {/* YouTube */}
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1.5">
+            <label className="block text-xs font-medium text-[#A1A1AA] mb-1.5">
               YouTube Data API v3
             </label>
             <div className="relative">
@@ -141,31 +135,30 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
                   setYoutubeEditing(true);
                 }}
                 placeholder="AIza..."
-                className={`w-full rounded-lg border bg-bg-card-inner px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-accent font-mono ${
-                  youtubeStatus === 'error' ? 'border-error' : youtubeStatus === 'success' ? 'border-success' : 'border-border'
+                className={`w-full rounded-lg border bg-[#0A0A0A] px-4 py-2.5 pr-10 text-sm text-white placeholder:text-[#555] outline-none transition-colors focus:border-accent font-mono ${
+                  youtubeStatus === 'error' ? 'border-red-500' : youtubeStatus === 'success' ? 'border-green-500' : 'border-[#1E1E1E]'
                 }`}
               />
               <button
                 type="button"
                 onClick={() => setShowYoutubeKey(!showYoutubeKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#555] hover:text-white cursor-pointer"
               >
                 {showYoutubeKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {youtubeStatus === 'success' && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-400">
                 <Check className="h-3 w-3" /> Zweryfikowany
               </p>
             )}
-            {youtubeStatus === 'error' && <p className="mt-1 text-xs text-error">{youtubeError}</p>}
+            {youtubeStatus === 'error' && <p className="mt-1 text-xs text-red-400">{youtubeError}</p>}
             {youtubeStatus === 'idle' && !youtubeKey && backendKeyStatus?.youtubeKeySet && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-400">
                 <Check className="h-3 w-3" /> Klucz zapisany na serwerze
               </p>
             )}
-            {/* YouTube guide */}
-            <details className="mt-3 group">
+            <details className="mt-3">
               <summary className="text-[11px] text-[#666] cursor-pointer hover:text-[#999] transition-colors">
                 Jak uzyskać klucz YouTube API? ↓
               </summary>
@@ -181,7 +174,7 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
 
           {/* TikTok */}
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1.5">
+            <label className="block text-xs font-medium text-[#A1A1AA] mb-1.5">
               TikTok RapidAPI
             </label>
             <div className="relative">
@@ -196,31 +189,30 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
                   setTiktokEditing(true);
                 }}
                 placeholder="xxxxxxxx..."
-                className={`w-full rounded-lg border bg-bg-card-inner px-4 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-accent font-mono ${
-                  tiktokStatus === 'error' ? 'border-error' : tiktokStatus === 'success' ? 'border-success' : 'border-border'
+                className={`w-full rounded-lg border bg-[#0A0A0A] px-4 py-2.5 pr-10 text-sm text-white placeholder:text-[#555] outline-none transition-colors focus:border-accent font-mono ${
+                  tiktokStatus === 'error' ? 'border-red-500' : tiktokStatus === 'success' ? 'border-green-500' : 'border-[#1E1E1E]'
                 }`}
               />
               <button
                 type="button"
                 onClick={() => setShowTiktokKey(!showTiktokKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#555] hover:text-white cursor-pointer"
               >
                 {showTiktokKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {tiktokStatus === 'success' && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-400">
                 <Check className="h-3 w-3" /> Zweryfikowany
               </p>
             )}
-            {tiktokStatus === 'error' && <p className="mt-1 text-xs text-error">{tiktokError}</p>}
+            {tiktokStatus === 'error' && <p className="mt-1 text-xs text-red-400">{tiktokError}</p>}
             {tiktokStatus === 'idle' && !tiktokKey && backendKeyStatus?.tiktokKeySet && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-success">
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-400">
                 <Check className="h-3 w-3" /> Klucz zapisany na serwerze
               </p>
             )}
-            {/* TikTok guide */}
-            <details className="mt-3 group">
+            <details className="mt-3">
               <summary className="text-[11px] text-[#666] cursor-pointer hover:text-[#999] transition-colors">
                 Jak uzyskać klucz TikTok RapidAPI? ↓
               </summary>
@@ -245,23 +237,21 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
         </div>
       </section>
 
-      {/* Account Section — placeholder */}
+      {/* Account Section */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
-          <User className="h-4 w-4 text-accent" />
-          <h2 className="text-xs font-semibold tracking-widest uppercase text-text-muted">
-            Konto
-          </h2>
+        <div className="mb-3 flex items-center gap-2">
+          <User className="h-3.5 w-3.5 text-accent" />
+          <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">Konto</span>
         </div>
 
-        <div className="rounded-xl border border-border bg-bg-card p-6 space-y-4">
+        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5 space-y-4">
           <div>
-            <p className="text-xs text-text-muted mb-1">Email</p>
-            <p className="text-sm text-text-primary">{user?.email || '—'}</p>
+            <p className="text-xs text-[#888] mb-1">Email</p>
+            <p className="text-sm text-white">{user?.email || '—'}</p>
           </div>
           <button
             onClick={onSignOut}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-[#1C1C1C] transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#1E1E1E] text-sm font-medium text-[#A1A1AA] hover:bg-[#1C1C1C] transition-colors cursor-pointer"
           >
             Wyloguj
           </button>

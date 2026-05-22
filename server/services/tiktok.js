@@ -57,4 +57,40 @@ async function fetchTikTokVideos(identifier, apiKey) {
   }
 }
 
-module.exports = { fetchTikTokVideos };
+/**
+ * Fetches TikTok user stats (followers, total likes).
+ * @param {string} identifier — TikTok username
+ * @param {string} apiKey — RapidAPI key
+ * @returns {Promise<{follower_count: number, total_like_count: number}>}
+ */
+async function fetchTikTokChannelStats(identifier, apiKey) {
+  if (!apiKey) return { follower_count: 0, total_like_count: 0 };
+
+  const username = identifier.startsWith('@') ? identifier.slice(1) : identifier;
+
+  const headers = {
+    'x-rapidapi-key': apiKey,
+    'x-rapidapi-host': RAPIDAPI_HOST,
+  };
+
+  try {
+    const response = await axios.get(`${BASE_URL}/user/info`, {
+      headers,
+      params: { unique_id: username },
+      timeout: 15000,
+    });
+
+    const stats = response.data?.data?.stats;
+    if (!stats) return { follower_count: 0, total_like_count: 0 };
+
+    return {
+      follower_count: stats.followerCount || 0,
+      total_like_count: stats.heartCount || stats.heart || 0,
+    };
+  } catch (err) {
+    console.error(`[tiktok] Failed to fetch stats for @${username}:`, err.message);
+    return { follower_count: 0, total_like_count: 0 };
+  }
+}
+
+module.exports = { fetchTikTokVideos, fetchTikTokChannelStats };

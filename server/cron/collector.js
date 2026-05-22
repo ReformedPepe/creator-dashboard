@@ -1,7 +1,7 @@
 // cron/collector.js — per-user data collection via Supabase
 const { supabase } = require('../lib/supabase');
-const { fetchYouTubeVideos } = require('../services/youtube');
-const { fetchTikTokVideos } = require('../services/tiktok');
+const { fetchYouTubeVideos, fetchYouTubeChannelStats } = require('../services/youtube');
+const { fetchTikTokVideos, fetchTikTokChannelStats } = require('../services/tiktok');
 
 /**
  * Get active user IDs — only users who logged in within the last 7 days
@@ -179,6 +179,26 @@ async function collectForChannel(channel, keys) {
       await supabase.from('videos').delete().in('id', oldIds);
       console.log(`  [${channel.name}] Cleaned up ${oldVideos.length} old video(s)`);
     }
+  }
+
+  // Fetch and save channel stats
+  try {
+    if (channel.type === 'youtube') {
+      const stats = await fetchYouTubeChannelStats(channel.identifier, keys.youtubeApiKey);
+      await supabase.from('channels').update({
+        subscriber_count: stats.subscriber_count,
+        total_view_count: stats.total_view_count,
+        video_count: stats.video_count,
+      }).eq('id', channel.id);
+    } else if (channel.type === 'tiktok') {
+      const stats = await fetchTikTokChannelStats(channel.identifier, keys.tiktokApiKey);
+      await supabase.from('channels').update({
+        follower_count: stats.follower_count,
+        total_view_count: stats.total_like_count,
+      }).eq('id', channel.id);
+    }
+  } catch (err) {
+    console.warn(`  [${channel.name}] Failed to fetch channel stats:`, err.message);
   }
 
   return { channel: channel.name, status: 'ok', videosProcessed: videos.length };

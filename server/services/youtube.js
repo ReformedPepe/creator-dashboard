@@ -104,4 +104,32 @@ async function fetchVideosFromPlaylist(playlistId, apiKey) {
   }));
 }
 
-module.exports = { fetchYouTubeVideos };
+/**
+ * Fetches channel statistics (subscribers, total views, video count).
+ * @param {string} identifier — Channel ID (UC...), handle (@username), or username
+ * @param {string} apiKey — YouTube Data API v3 key
+ * @returns {Promise<{subscriber_count: number, total_view_count: number, video_count: number}>}
+ */
+async function fetchYouTubeChannelStats(identifier, apiKey) {
+  if (!apiKey) throw new Error('Missing YouTube API key');
+
+  let params;
+  if (identifier.startsWith('@') || !identifier.startsWith('UC')) {
+    const handle = identifier.startsWith('@') ? identifier : `@${identifier}`;
+    params = { part: 'statistics', forHandle: handle, key: apiKey };
+  } else {
+    params = { part: 'statistics', id: identifier, key: apiKey };
+  }
+
+  const res = await axios.get(`${BASE_URL}/channels`, { params });
+  const item = res.data?.items?.[0];
+  if (!item) return { subscriber_count: 0, total_view_count: 0, video_count: 0 };
+
+  return {
+    subscriber_count: parseInt(item.statistics.subscriberCount, 10) || 0,
+    total_view_count: parseInt(item.statistics.viewCount, 10) || 0,
+    video_count: parseInt(item.statistics.videoCount, 10) || 0,
+  };
+}
+
+module.exports = { fetchYouTubeVideos, fetchYouTubeChannelStats };
