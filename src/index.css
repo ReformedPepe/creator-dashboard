@@ -3,6 +3,7 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --breakpoint-xs: 480px;
 
   /* Dark-only design system — Attio/Linear style */
   --color-bg-page: #0A0A0A;
@@ -113,4 +114,21 @@ body {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   background: rgba(0, 0, 0, 0.7);
+}
+
+/* Mobile bottom sheet slide-up animation */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 300ms ease-out;
+}
+
+/* Prevent iOS zoom on input focus — minimum 16px font */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }

@@ -46,7 +46,7 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
   };
 
   return (
-    <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5">
+    <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-3.5 md:p-5">
       {/* Channel header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -137,7 +137,7 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
         ) : videos && videos.length > 0 ? (
           <>
             {/* Time range + legend */}
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3 text-[10px] text-[#555]">
                 <span className="flex items-center gap-1">
                   <span className="inline-block h-[2px] w-3 rounded bg-accent" />
@@ -152,12 +152,12 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
                   spadek
                 </span>
               </div>
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 overflow-x-auto">
                 {TIME_RANGES.map(({ label, ms }) => (
                   <button
                     key={label}
                     onClick={(e) => { e.preventDefault(); setTimeRangeMs(ms); }}
-                    className={`px-2 py-0.5 text-[10px] rounded-md cursor-pointer transition-colors ${
+                    className={`px-2 py-0.5 text-[10px] rounded-md cursor-pointer transition-colors whitespace-nowrap ${
                       timeRangeMs === ms
                         ? 'bg-accent-muted text-accent-light font-semibold'
                         : 'text-[#555] hover:text-[#888]'

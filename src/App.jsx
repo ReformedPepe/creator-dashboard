@@ -45,6 +45,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('creator-dashboard-sidebar-collapsed') === 'true'; } catch { return false; }
   });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Video data stored at App level — keyed by channel id
   const [videosMap, setVideosMap] = useState({});
@@ -259,17 +260,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-page">
-      <Sidebar currentView={currentView} onNavigate={handleNavigate} onCollapseChange={setSidebarCollapsed} user={user} onSignOut={signOut} />
+    <div className="min-h-screen bg-bg-page overflow-x-hidden">
+      <Sidebar
+        currentView={currentView}
+        onNavigate={handleNavigate}
+        onCollapseChange={setSidebarCollapsed}
+        user={user}
+        onSignOut={signOut}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
 
-      <main className={`min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
-        <div className="dotted-bg min-h-screen p-6">
+      <main className={`min-h-screen transition-all duration-300 ml-0 ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-56'}`}>
+        <div className="dotted-bg min-h-screen p-4 md:p-6">
           {/* Topbar — always rendered first, same position regardless of view */}
           <Topbar
             title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : 'Ustawienia'}
             onRefresh={(currentView === 'dashboard' || currentView === 'channels') ? handleManualRefresh : undefined}
             onAddChannel={(currentView === 'dashboard' || currentView === 'channels') ? openAddModal : undefined}
             isRefreshing={isRefreshing}
+            onMenuToggle={() => setMobileSidebarOpen(true)}
           />
 
           {(currentView === 'dashboard' || currentView === 'channels') && (
@@ -321,9 +331,7 @@ export default function App() {
           )}
 
           {currentView === 'settings' && (
-            <div className="space-y-6">
-              <SettingsPage onKeysSaved={syncApiKeys} user={user} onSignOut={signOut} />
-            </div>
+            <SettingsPage onKeysSaved={syncApiKeys} user={user} onSignOut={signOut} />
           )}
         </div>
       </main>

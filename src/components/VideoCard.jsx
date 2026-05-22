@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { Eye, ThumbsUp, MessageCircle } from 'lucide-react';
 import { formatViewCount, formatPercentChange } from '../utils/formatters';
-import { calculatePercentChange, calculateTrend } from '../utils/trendCalculator';
+import { calculatePercentChange, calculateTrend, filterZeroSnapshots } from '../utils/trendCalculator';
 import { useViewHistory } from '../hooks/useViewHistory';
 import SparklineChart from './SparklineChart';
 
@@ -17,9 +17,13 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
         timestamp: typeof s.timestamp === 'string' ? new Date(s.timestamp).getTime() : s.timestamp,
         viewCount: s.view_count,
       }));
-      return { dataPoints: points, trend: calculateTrend(points) };
+      // Filter out zero/null snapshots — first baseline must be > 0
+      const filtered = filterZeroSnapshots(points);
+      return { dataPoints: filtered, trend: calculateTrend(filtered) };
     }
-    return localHistory;
+    // localStorage fallback — also filter zeros
+    const filtered = filterZeroSnapshots(localHistory.dataPoints);
+    return { dataPoints: filtered, trend: calculateTrend(filtered) };
   }, [video._backendSnapshots, localHistory]);
 
   const now = Date.now();
@@ -28,9 +32,9 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
     : allDataPoints.filter(dp => dp.timestamp >= now - timeRangeMs);
 
   return (
-    <div className="flex gap-3 rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] p-3">
-      {/* Thumbnail — left, 120px wide, 16:9 */}
-      <div className="relative w-[120px] shrink-0 overflow-hidden rounded-md aspect-video">
+    <div className="flex gap-3 rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] p-2.5 md:p-3">
+      {/* Thumbnail — left, 80px on mobile, 120px on desktop, 16:9 */}
+      <div className="relative w-[80px] md:w-[120px] shrink-0 overflow-hidden rounded-md aspect-video">
         {video.thumbnail ? (
           <img
             src={video.thumbnail}

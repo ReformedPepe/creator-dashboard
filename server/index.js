@@ -8,6 +8,7 @@ const videoRoutes = require('./routes/videos');
 const refreshRoutes = require('./routes/refresh');
 const settingsRoutes = require('./routes/settings');
 const { collectAll, collectYouTube, collectTikTok } = require('./cron/collector');
+const { discoverNewVideos } = require('./cron/videoDiscovery');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -45,6 +46,12 @@ cron.schedule('0 * * * *', () => {
 cron.schedule('0 */6 * * *', () => {
   console.log(`[cron] 6-hourly TikTok collection triggered at ${new Date().toISOString()}`);
   collectTikTok();
+});
+
+// Schedule new video discovery every 5 minutes (*/5 * * * *)
+cron.schedule('*/5 * * * *', () => {
+  console.log(`[cron] 5-min video discovery triggered at ${new Date().toISOString()}`);
+  discoverNewVideos();
 });
 
 // Delayed initial collection — wait 5s for frontend to sync API keys via POST /api/settings

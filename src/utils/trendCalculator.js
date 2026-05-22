@@ -2,11 +2,23 @@
 // Feature: sparkline-view-trends
 
 /**
- * Oblicza procent zmiany między pierwszym (najstarszym) a ostatnim (najnowszym) punktem.
- * Formula: ((last_viewCount - first_viewCount) / first_viewCount) * 100
- * Handles division by zero: returns 0 when first_viewCount === 0.
+ * Filtruje punkty danych — pomija snapshoty z viewCount === 0 lub null/undefined.
+ * Pierwszy punkt bazowy musi być > 0.
  *
  * @param {Array<{timestamp: number, viewCount: number}>} dataPoints - posortowane chronologicznie
+ * @returns {Array<{timestamp: number, viewCount: number}>} przefiltrowane punkty (viewCount > 0)
+ */
+export function filterZeroSnapshots(dataPoints) {
+  if (!Array.isArray(dataPoints)) return [];
+  return dataPoints.filter(dp => dp.viewCount != null && dp.viewCount > 0);
+}
+
+/**
+ * Oblicza procent zmiany między pierwszym (najstarszym) a ostatnim (najnowszym) punktem.
+ * Oczekuje danych już przefiltrowanych (bez zerowych/null viewCount).
+ * Formula: ((last_viewCount - first_viewCount) / first_viewCount) * 100
+ *
+ * @param {Array<{timestamp: number, viewCount: number}>} dataPoints - posortowane chronologicznie, viewCount > 0
  * @returns {number} procent zmiany (np. 5.2 oznacza +5.2%)
  */
 export function calculatePercentChange(dataPoints) {
@@ -17,7 +29,7 @@ export function calculatePercentChange(dataPoints) {
   const first = dataPoints[0].viewCount;
   const last = dataPoints[dataPoints.length - 1].viewCount;
 
-  if (first === 0) {
+  if (!first || first === 0) {
     return 0;
   }
 

@@ -117,7 +117,7 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">Klucze API</span>
         </div>
 
-        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5 space-y-5">
+        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-5">
           {/* YouTube */}
           <div>
             <label className="block text-xs font-medium text-[#A1A1AA] mb-1.5">
@@ -244,7 +244,7 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">Konto</span>
         </div>
 
-        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-5 space-y-4">
+        <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-4">
           <div>
             <p className="text-xs text-[#888] mb-1">Email</p>
             <p className="text-sm text-white">{user?.email || '—'}</p>

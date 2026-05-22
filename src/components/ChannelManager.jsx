@@ -141,15 +141,15 @@ export default function ChannelManager({
   const isSubmitDisabled = !name.trim() || (identifierRequired && !identifier.trim());
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 modal-backdrop"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-md rounded-[16px] border border-[#222222] bg-[#111111] p-6">
+      {/* Modal — bottom sheet on mobile, centered on desktop */}
+      <div className="relative w-full md:max-w-md rounded-t-[20px] md:rounded-[16px] border border-[#222222] bg-[#111111] p-5 md:p-6 max-h-[90vh] overflow-y-auto animate-slide-up md:animate-none">
         {/* Close button */}
         <button
           onClick={onClose}
