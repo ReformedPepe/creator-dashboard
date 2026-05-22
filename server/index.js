@@ -9,6 +9,7 @@ const refreshRoutes = require('./routes/refresh');
 const settingsRoutes = require('./routes/settings');
 const { collectAll, collectYouTube, collectTikTok } = require('./cron/collector');
 const { discoverNewVideos } = require('./cron/videoDiscovery');
+const toolsRoutes = require('./routes/tools');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,7 +28,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Auth middleware for all /api/* routes (except /api/health above)
+// Public routes (no auth) — must be before requireAuth middleware
+app.use('/api/tools', toolsRoutes);
+
+// Auth middleware for all /api/* routes (except /api/health and /api/tools/* above)
 app.use('/api', requireAuth);
 
 // Routes

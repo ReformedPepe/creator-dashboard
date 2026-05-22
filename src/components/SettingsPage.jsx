@@ -1,7 +1,7 @@
 // SettingsPage — strona ustawień (klucze API + konto)
 // Layout identyczny z Dashboard: te same klasy, marginesy, paddingi
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Check, Loader2, Key, User } from 'lucide-react';
+import { Eye, EyeOff, Check, Loader2, Key, User, Trash2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import {
@@ -28,6 +28,9 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
   const [backendKeyStatus, setBackendKeyStatus] = useState(null);
   const [youtubeEditing, setYoutubeEditing] = useState(false);
   const [tiktokEditing, setTiktokEditing] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchKeyStatus = async () => {
     try {
@@ -249,14 +252,96 @@ export default function SettingsPage({ onKeysSaved, user, onSignOut }) {
             <p className="text-xs text-[#888] mb-1">Email</p>
             <p className="text-sm text-white">{user?.email || '—'}</p>
           </div>
-          <button
-            onClick={onSignOut}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#1E1E1E] text-sm font-medium text-[#A1A1AA] hover:bg-[#1C1C1C] transition-colors cursor-pointer"
-          >
-            Wyloguj
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onSignOut}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#1E1E1E] text-sm font-medium text-[#A1A1AA] hover:bg-[#1C1C1C] transition-colors cursor-pointer"
+            >
+              Wyloguj
+            </button>
+          </div>
+
+          {/* Delete account */}
+          <div className="pt-4 border-t border-[#1E1E1E]">
+            <p className="text-xs text-[#666] mb-3">
+              Usunięcie konta jest nieodwracalne. Wszystkie kanały, filmy, snapshoty i klucze API zostaną trwale usunięte.
+            </p>
+            <button
+              onClick={() => { setDeleteConfirm(true); setDeleteInput(''); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-red-500/30 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Usuń konto
+            </button>
+          </div>
         </div>
       </section>
+
+      {/* Delete account modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 modal-backdrop" onClick={() => { setDeleteConfirm(false); setDeleteInput(''); }} />
+          <div className="relative w-full max-w-sm rounded-[16px] border border-[#222222] bg-[#111111] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10">
+                <AlertTriangle className="h-5 w-5 text-red-400" />
+              </div>
+              <h3 className="text-base font-semibold text-white">Usunięcie konta</h3>
+            </div>
+            <p className="text-sm text-[#A1A1AA] mb-2">
+              Ta operacja jest <span className="text-red-400 font-medium">nieodwracalna</span>. Zostaną usunięte:
+            </p>
+            <ul className="text-xs text-[#888] mb-4 space-y-1 ml-4 list-disc">
+              <li>Wszystkie kanały i filmy</li>
+              <li>Historia wyświetleń (snapshoty)</li>
+              <li>Klucze API</li>
+              <li>Konto użytkownika</li>
+            </ul>
+            <p className="text-xs text-[#A1A1AA] mb-2">
+              Wpisz <span className="font-mono font-bold text-white">USUŃ</span> aby potwierdzić:
+            </p>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="USUŃ"
+              className="w-full rounded-lg border border-[#1E1E1E] bg-[#0A0A0A] px-4 py-2.5 text-sm text-white placeholder:text-[#555] outline-none focus:border-red-500 transition-colors mb-4"
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session?.access_token) return;
+                    await axios.delete(`${BACKEND_URL}/api/account`, {
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                    });
+                    await supabase.auth.signOut();
+                    window.location.reload();
+                  } catch (err) {
+                    console.error('Błąd usuwania konta:', err);
+                    setIsDeleting(false);
+                  }
+                }}
+                disabled={deleteInput !== 'USUŃ' || isDeleting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 text-sm font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {isDeleting ? 'Usuwanie...' : 'Usuń konto na zawsze'}
+              </button>
+              <button
+                onClick={() => { setDeleteConfirm(false); setDeleteInput(''); }}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-lg border border-[#1E1E1E] text-sm font-medium text-[#A1A1AA] hover:bg-[#1C1C1C] transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

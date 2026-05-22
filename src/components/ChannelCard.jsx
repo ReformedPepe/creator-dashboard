@@ -11,12 +11,6 @@ const TIME_RANGES = [
   { label: 'Wszystko', ms: Infinity },
 ];
 
-// Refresh intervals per platform
-const REFRESH_INTERVAL = {
-  youtube: 60 * 60 * 1000,      // 1 hour
-  tiktok: 6 * 60 * 60 * 1000,   // 6 hours
-};
-
 function getCollapseKey(channelId) {
   return `statflow-collapsed-${channelId}`;
 }
@@ -33,30 +27,6 @@ function safeDecodeURI(str) {
 }
 
 /**
- * Gets the latest snapshot timestamp from videos data.
- * Finds MAX(timestamp) across all snapshots of all videos.
- * Returns null if no snapshots found.
- */
-function getLatestSnapshotTimestamp(videos) {
-  if (!videos || videos.length === 0) return null;
-
-  let latest = 0;
-  for (const video of videos) {
-    const snaps = video._backendSnapshots;
-    if (snaps && snaps.length > 0) {
-      for (const snap of snaps) {
-        const ts = typeof snap.timestamp === 'string'
-          ? new Date(snap.timestamp).getTime()
-          : snap.timestamp;
-        if (ts > latest) latest = ts;
-      }
-    }
-  }
-
-  return latest > 0 ? latest : null;
-}
-
-/**
  * Formats remaining milliseconds as "MM:SS"
  */
 function formatCountdown(ms) {
@@ -68,29 +38,42 @@ function formatCountdown(ms) {
 }
 
 /**
- * Countdown timer hook
+ * Calculates ms remaining until the next full hour (for YouTube)
+ * or next 6h mark 00:00/06:00/12:00/18:00 (for TikTok).
+ * Based purely on system clock — no snapshot data needed.
  */
-function useCountdown(targetTimestamp) {
-  const [remaining, setRemaining] = useState(() => {
-    if (!targetTimestamp) return null;
-    return Math.max(0, targetTimestamp - Date.now());
-  });
+function getMsUntilNextRefresh(type) {
+  const now = new Date();
+
+  if (type === 'youtube') {
+    // Time until next :00 = 60:00 - current_min:current_sec
+    const msIntoHour = now.getMinutes() * 60000 + now.getSeconds() * 1000 + now.getMilliseconds();
+    return 3600000 - msIntoHour;
+  }
+
+  // TikTok: next 6h boundary (00:00, 06:00, 12:00, 18:00)
+  const currentHour = now.getHours();
+  const nextBoundary = Math.ceil((currentHour + 1) / 6) * 6; // next 6h mark
+  const targetHour = nextBoundary >= 24 ? 0 : nextBoundary;
+  const target = new Date(now);
+  target.setHours(targetHour, 0, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  return target.getTime() - now.getTime();
+}
+
+/**
+ * Hook that returns remaining ms until next cron refresh.
+ * Updates every second. Based on system clock only.
+ */
+function useNextRefreshCountdown(type) {
+  const [remaining, setRemaining] = useState(() => getMsUntilNextRefresh(type));
 
   useEffect(() => {
-    if (!targetTimestamp) {
-      setRemaining(null);
-      return;
-    }
-
-    const update = () => {
-      const diff = targetTimestamp - Date.now();
-      setRemaining(Math.max(0, diff));
-    };
-
+    const update = () => setRemaining(getMsUntilNextRefresh(type));
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [targetTimestamp]);
+  }, [type]);
 
   return remaining;
 }
@@ -110,12 +93,8 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
   const isYoutube = channel.type === 'youtube';
   const PlatformIcon = isYoutube ? Play : Music;
 
-  // Calculate next refresh timestamp
-  const latestSnapshot = getLatestSnapshotTimestamp(videos);
-  const nextRefreshAt = latestSnapshot
-    ? latestSnapshot + REFRESH_INTERVAL[channel.type]
-    : null;
-  const remaining = useCountdown(nextRefreshAt);
+  // Countdown to next cron refresh — based on system clock only
+  const remaining = useNextRefreshCountdown(channel.type);
 
   // Measure content height for smooth animation
   useEffect(() => {
@@ -187,7 +166,7 @@ export default function ChannelCard({ channel, videos, loading, onEdit, hasApiKe
 
         <div className="flex items-center gap-1.5">
           {/* Countdown timer */}
-          {remaining !== null && remaining > 0 && (
+          {remaining > 0 && (
             <span className="flex items-center gap-1 text-[10px] text-[#555] mr-1" title="Czas do następnego odświeżenia">
               <Clock className="h-3 w-3" />
               {formatCountdown(remaining)}

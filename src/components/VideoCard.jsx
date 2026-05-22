@@ -6,7 +6,7 @@ import { calculatePercentChange, calculateTrend, filterZeroSnapshots } from '../
 import { useViewHistory } from '../hooks/useViewHistory';
 import SparklineChart from './SparklineChart';
 
-export default function VideoCard({ video, timeRangeMs = Infinity }) {
+export default function VideoCard({ video, platform, timeRangeMs = Infinity }) {
   // Try backend snapshots first (works across devices), fallback to localStorage
   const localHistory = useViewHistory(video.id || video.videoId);
 
@@ -31,10 +31,20 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
     ? allDataPoints
     : allDataPoints.filter(dp => dp.timestamp >= now - timeRangeMs);
 
+  // Build video URL
+  const videoUrl = platform === 'tiktok'
+    ? `https://www.tiktok.com/@/video/${video.id}`
+    : `https://www.youtube.com/watch?v=${video.id}`;
+
   return (
     <div className="flex gap-3 rounded-lg bg-[#0F0F0F] border border-[#1A1A1A] p-2.5 md:p-3">
-      {/* Thumbnail — left, 80px on mobile, 120px on desktop, 16:9 */}
-      <div className="relative w-[80px] md:w-[120px] shrink-0 overflow-hidden rounded-md aspect-video">
+      {/* Thumbnail — clickable, opens video on platform */}
+      <a
+        href={videoUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative w-[80px] md:w-[120px] shrink-0 overflow-hidden rounded-md aspect-video hover:opacity-80 transition-opacity"
+      >
         {video.thumbnail ? (
           <img
             src={video.thumbnail}
@@ -47,7 +57,7 @@ export default function VideoCard({ video, timeRangeMs = Infinity }) {
             <Eye className="h-5 w-5 text-[#333]" />
           </div>
         )}
-      </div>
+      </a>
 
       {/* Info — right */}
       <div className="flex flex-col flex-1 min-w-0">

@@ -2,7 +2,7 @@
 // Desktop: icons always positioned at center of 64px column (collapsed width).
 // Mobile: always full width (240px), hidden off-screen by default, overlay when open.
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Radio, Settings, BarChart2, User, LogOut, PanelLeft, PanelRight, X } from 'lucide-react';
+import { LayoutDashboard, Radio, Settings, BarChart2, User, LogOut, PanelLeft, PanelRight, X, Wrench, FileText } from 'lucide-react';
 
 const SIDEBAR_KEY = 'creator-dashboard-sidebar-collapsed';
 // Icon zone: 64px wide. Icon is 20px. Center = (64 - 20) / 2 = 22px from left.
@@ -15,6 +15,7 @@ const USER_PL = 'pl-[16px]';
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'channels', label: 'Kanały', icon: Radio },
+  { id: 'transcript', label: 'Transkrypcja', icon: FileText, section: 'tools' },
   { id: 'settings', label: 'Ustawienia', icon: Settings },
 ];
 
@@ -110,26 +111,36 @@ export default function Sidebar({ currentView, onNavigate, onCollapseChange, use
 
         {/* Navigation — icons always at same X position */}
         <nav className="flex-1 flex flex-col py-4 gap-1 w-full">
-          {navItems.map(({ id, label, icon: Icon }) => {
+          {navItems.map(({ id, label, icon: Icon, section }, index) => {
             const isActive = currentView === id;
+            // Show section label before first tools item
+            const showSectionLabel = section === 'tools' && (index === 0 || navItems[index - 1]?.section !== 'tools');
 
             return (
-              <button
-                key={id}
-                onClick={() => handleNavClick(id)}
-                className={`relative flex items-center gap-3 h-10 ${ICON_PL} pr-3 rounded-none transition-colors cursor-pointer w-full ${
-                  isActive ? 'text-white bg-[#161616]' : 'text-[#666] hover:text-white hover:bg-[#111]'
-                }`}
-                title={collapsed ? label : undefined}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent" />
+              <div key={id}>
+                {showSectionLabel && (
+                  <div className={`${ICON_PL} pr-3 pt-3 pb-1`}>
+                    <span className={`text-[10px] font-semibold tracking-widest uppercase text-[#444] whitespace-nowrap transition-opacity duration-200 ${textVisibility}`}>
+                      Narzędzia
+                    </span>
+                  </div>
                 )}
-                <Icon className={`h-[20px] w-[20px] shrink-0 ${isActive ? 'text-white' : 'text-[#555]'}`} />
-                <span className={`whitespace-nowrap text-sm font-medium transition-opacity duration-200 ${textVisibility}`}>
-                  {label}
-                </span>
-              </button>
+                <button
+                  onClick={() => handleNavClick(id)}
+                  className={`relative flex items-center gap-3 h-10 ${ICON_PL} pr-3 rounded-none transition-colors cursor-pointer w-full ${
+                    isActive ? 'text-white bg-[#161616]' : 'text-[#666] hover:text-white hover:bg-[#111]'
+                  }`}
+                  title={collapsed ? label : undefined}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent" />
+                  )}
+                  <Icon className={`h-[20px] w-[20px] shrink-0 ${isActive ? 'text-white' : 'text-[#555]'}`} />
+                  <span className={`whitespace-nowrap text-sm font-medium transition-opacity duration-200 ${textVisibility}`}>
+                    {label}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </nav>

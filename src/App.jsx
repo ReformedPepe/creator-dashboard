@@ -8,6 +8,7 @@ import ChannelManager from './components/ChannelManager';
 import ChannelCard from './components/ChannelCard';
 import SortableChannelList from './components/SortableChannelList';
 import SettingsPage from './components/SettingsPage';
+import TranscriptPage from './components/TranscriptPage';
 import LandingPage from './components/LandingPage';
 import { useBackend } from './hooks/useBackend';
 import { useAuth } from './hooks/useAuth';
@@ -275,7 +276,7 @@ export default function App() {
         <div className="dotted-bg min-h-screen p-4 md:p-6">
           {/* Topbar — always rendered first, same position regardless of view */}
           <Topbar
-            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : 'Ustawienia'}
+            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : currentView === 'transcript' ? 'Transkrypcja' : 'Ustawienia'}
             onRefresh={(currentView === 'dashboard' || currentView === 'channels') ? handleManualRefresh : undefined}
             onAddChannel={(currentView === 'dashboard' || currentView === 'channels') ? openAddModal : undefined}
             isRefreshing={isRefreshing}
@@ -332,6 +333,10 @@ export default function App() {
 
           {currentView === 'settings' && (
             <SettingsPage onKeysSaved={syncApiKeys} user={user} onSignOut={signOut} />
+          )}
+
+          {currentView === 'transcript' && (
+            <TranscriptPage />
           )}
         </div>
       </main>

@@ -66,4 +66,61 @@ function maskKey(key) {
   return key.slice(0, 4) + '••••••••' + key.slice(-4);
 }
 
+// DELETE /api/account — delete user account and all associated data
+router.delete('/account', async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    console.log(`[account] Deleting all data for user ${userId}...`);
+
+    // 1. Get all channel IDs for this user
+    const { data: channels } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('user_id', userId);
+
+    const channelIds = channels?.map(ch => ch.id) || [];
+
+    if (channelIds.length > 0) {
+      // 2. Get all video IDs for these channels
+      const { data: videos } = await supabase
+        .from('videos')
+        .select('id')
+        .in('channel_id', channelIds);
+
+      const videoIds = videos?.map(v => v.id) || [];
+
+      // 3. Delete snapshots for all videos
+      if (videoIds.length > 0) {
+        await supabase.from('snapshots').delete().in('video_id', videoIds);
+      }
+
+      // 4. Delete videos
+      await supabase.from('videos').delete().in('channel_id', channelIds);
+
+      // 5. Delete channels
+      await supabase.from('channels').delete().eq('user_id', userId);
+    }
+
+    // 6. Delete API keys
+    await supabase.from('api_keys').delete().eq('user_id', userId);
+
+    // 7. Delete user activity
+    await supabase.from('user_activity').delete().eq('user_id', userId);
+
+    // 8. Delete the auth user via admin API
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) {
+      console.error(`[account] Failed to delete auth user:`, authError.message);
+      // Data is already deleted, log but don't fail
+    }
+
+    console.log(`[account] User ${userId} fully deleted.`);
+    res.json({ status: 'deleted' });
+  } catch (err) {
+    console.error('[account] DELETE error:', err.message);
+    res.status(500).json({ error: 'Nie udało się usunąć konta' });
+  }
+});
+
 module.exports = router;
