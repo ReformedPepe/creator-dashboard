@@ -62,6 +62,19 @@ router.post('/youtube-download', async (req, res) => {
     // Build yt-dlp arguments
     const args = [url, '-o', tempPath];
 
+    // Anti-bot detection + JS runtime workaround
+    args.push('--extractor-args', 'youtube:player_client=web');
+    args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
+    args.push('--sleep-interval', '1');
+    args.push('--no-check-certificates');
+
+    // Use cookies file if available (helps bypass bot detection)
+    const cookiesPath = path.join(__dirname, '..', 'cookies.txt');
+    if (fs.existsSync(cookiesPath)) {
+      args.push('--cookies', cookiesPath);
+    }
+
     if (format === 'mp4') {
       const formatStr = QUALITY_MAP[quality] || QUALITY_MAP['720p'];
       args.push('-f', formatStr);
