@@ -63,7 +63,7 @@ router.post('/youtube-download', async (req, res) => {
     const args = [url, '-o', tempPath];
 
     // Anti-bot detection + JS runtime workaround
-    args.push('--extractor-args', 'youtube:player_client=web');
+    args.push('--extractor-args', 'youtube:player_client=tv_embedded,web,mweb');
     args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     args.push('--sleep-interval', '1');
