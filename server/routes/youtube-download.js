@@ -63,16 +63,19 @@ router.post('/youtube-download', async (req, res) => {
     const args = [url, '-o', tempPath];
 
     // Anti-bot detection + JS runtime workaround
-    args.push('--extractor-args', 'youtube:player_client=tv_embedded,web,mweb');
+    args.push('--extractor-args', 'youtube:player_client=web,mweb;po_token=skip');
     args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     args.push('--sleep-interval', '1');
     args.push('--no-check-certificates');
+    args.push('--no-update-net-rc');
 
-    // Use cookies file if available (helps bypass bot detection)
-    const cookiesPath = '/etc/secrets/cookies.txt';
-    if (fs.existsSync(cookiesPath)) {
-      args.push('--cookies', cookiesPath);
+    // Copy cookies from read-only secret to writable tmp location (yt-dlp may try to update the file)
+    const secretCookiesPath = '/etc/secrets/cookies.txt';
+    const tmpCookiesPath = path.join(os.tmpdir(), 'yt-cookies.txt');
+    if (fs.existsSync(secretCookiesPath)) {
+      fs.copyFileSync(secretCookiesPath, tmpCookiesPath);
+      args.push('--cookies', tmpCookiesPath);
     }
 
     if (format === 'mp4') {
