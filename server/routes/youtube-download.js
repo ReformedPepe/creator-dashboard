@@ -63,7 +63,8 @@ const QUALITY_MAP = {
 // Build common yt-dlp arguments (auth, anti-bot, JS runtime, cookies)
 function buildCommonArgs() {
   const args = [];
-  args.push('--extractor-args', 'youtube:player_client=default,tv,web');
+  // Single player_client — default works with Deno, fewer client probes = faster start
+  args.push('--extractor-args', 'youtube:player_client=default');
   if (fs.existsSync(denoPath)) {
     args.push('--js-runtimes', `deno:${denoPath}`);
   }
@@ -185,7 +186,8 @@ router.post('/youtube-download', async (req, res) => {
   try {
     // Build yt-dlp arguments
     const args = [url, '-o', tempPath, ...buildCommonArgs()];
-    args.push('--sleep-interval', '1');
+    // Speed up downloads: 4 fragments in parallel
+    args.push('--concurrent-fragments', '4');
 
     if (format === 'mp4') {
       const formatStr = QUALITY_MAP[quality] || QUALITY_MAP['720p'];
