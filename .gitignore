@@ -30,3 +30,4 @@ dist-ssr
 server/.env
 server/node_modules/
 server/yt-dlp
+server/deno

@@ -10,6 +10,8 @@ const TIMEOUT_MS = 300000; // 300 seconds
 
 // Download yt-dlp binary via curl if not present
 const ytDlpPath = path.join(__dirname, '..', 'yt-dlp');
+// Deno is required by yt-dlp for YouTube JS challenge solving (n-sig)
+const denoPath = path.join(__dirname, '..', 'deno');
 
 function ensureYtDlp() {
   if (!fs.existsSync(ytDlpPath)) {
@@ -24,7 +26,27 @@ function ensureYtDlp() {
   }
 }
 
+function ensureDeno() {
+  if (!fs.existsSync(denoPath)) {
+    console.log('[deno] Downloading binary...');
+    try {
+      const denoDir = path.dirname(denoPath);
+      const zipPath = path.join(denoDir, 'deno.zip');
+      execSync(
+        `curl -L https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o ${zipPath} && unzip -o ${zipPath} -d ${denoDir} && chmod +x ${denoPath} && rm ${zipPath}`,
+        { stdio: 'inherit' }
+      );
+      console.log('[deno] Binary ready');
+    } catch (e) {
+      console.error('[deno] Failed to install:', e.message);
+    }
+  } else {
+    console.log('[deno] Binary already exists at', denoPath);
+  }
+}
+
 ensureYtDlp();
+ensureDeno();
 
 const YTDlpWrap = require('yt-dlp-wrap').default;
 const ytDlp = new YTDlpWrap(ytDlpPath);
@@ -63,7 +85,10 @@ router.post('/youtube-download', async (req, res) => {
     const args = [url, '-o', tempPath];
 
     // Anti-bot detection + JS runtime workaround
-    args.push('--extractor-args', 'youtube:player_client=tv,ios');
+    args.push('--extractor-args', 'youtube:player_client=default,tv,web');
+    if (fs.existsSync(denoPath)) {
+      args.push('--js-runtimes', `deno:${denoPath}`);
+    }
     args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     args.push('--sleep-interval', '1');
