@@ -37,6 +37,7 @@ export default function YouTubeDownloaderPage() {
   const [quality, setQuality] = useState('720p');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressPhase, setProgressPhase] = useState('idle'); // 'idle' | 'preparing' | 'extracting' | 'server-download' | 'merging' | 'transferring' | 'done'
   const [downloadError, setDownloadError] = useState(null);
 
   // Debounced URL validation (300ms)
@@ -121,7 +122,41 @@ export default function YouTubeDownloaderPage() {
 
     setLoading(true);
     setProgress(0);
+    setProgressPhase('preparing');
     setDownloadError(null);
+
+    // Generate jobId for progress tracking
+    const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    // Open SSE connection for backend progress
+    const sseUrl = `${import.meta.env.VITE_API_URL}/api/tools/youtube-progress/${jobId}`;
+    let eventSource = null;
+    try {
+      eventSource = new EventSource(sseUrl);
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.phase === 'extracting') {
+            setProgressPhase('extracting');
+            setProgress(0);
+          } else if (data.phase === 'downloading') {
+            setProgressPhase('server-download');
+            setProgress(Math.min(Math.round(data.percent || 0), 95));
+          } else if (data.phase === 'merging') {
+            setProgressPhase('merging');
+            setProgress(95);
+          } else if (data.phase === 'transferring') {
+            setProgressPhase('transferring');
+            // keep current progress; axios onDownloadProgress will overwrite
+          }
+        } catch {}
+      };
+      eventSource.onerror = () => {
+        // SSE connection lost — non-fatal, keep going with axios progress only
+      };
+    } catch {
+      // EventSource not available — continue without SSE
+    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -129,7 +164,7 @@ export default function YouTubeDownloaderPage() {
 
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/tools/youtube-download`,
-        { url, format, quality },
+        { url, format, quality, jobId },
         {
           responseType: 'blob',
           headers: {
@@ -137,18 +172,16 @@ export default function YouTubeDownloaderPage() {
             'Content-Type': 'application/json',
           },
           onDownloadProgress: (progressEvent) => {
+            // Once browser starts receiving file bytes, switch to transfer phase
             if (progressEvent.total) {
               const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+              setProgressPhase('transferring');
               setProgress(percent);
-            } else if (progressEvent.loaded) {
-              // No total available — show indeterminate (cap at 90 to indicate ongoing)
-              setProgress((prev) => (prev < 90 ? prev + 1 : prev));
             }
           },
         }
       );
 
-      // Parse filename from Content-Disposition header
       const disposition = response.headers['content-disposition'];
       let filename = `download.${format}`;
       if (disposition) {
@@ -157,13 +190,11 @@ export default function YouTubeDownloaderPage() {
           filename = match[1];
         }
       }
-      // Use video title if available
       if (videoInfo.title) {
         const safeName = videoInfo.title.replace(/[/\\:*?"<>|]/g, '').slice(0, 100);
         filename = `${safeName}.${format}`;
       }
 
-      // Trigger download via hidden <a> element
       const objectUrl = URL.createObjectURL(response.data);
       const a = document.createElement('a');
       a.href = objectUrl;
@@ -174,6 +205,7 @@ export default function YouTubeDownloaderPage() {
       URL.revokeObjectURL(objectUrl);
 
       setProgress(100);
+      setProgressPhase('done');
     } catch (err) {
       let message = 'Wystąpił błąd podczas pobierania. Spróbuj ponownie.';
 
@@ -203,7 +235,11 @@ export default function YouTubeDownloaderPage() {
       }
 
       setDownloadError(message);
+      setProgressPhase('idle');
     } finally {
+      if (eventSource) {
+        try { eventSource.close(); } catch {}
+      }
       setLoading(false);
     }
   };
@@ -426,9 +462,11 @@ export default function YouTubeDownloaderPage() {
                     )}
                   </div>
                   <p className="text-xs text-[#888] text-center">
-                    {progress > 0
-                      ? `Pobieranie pliku... ${progress}%`
-                      : 'Przygotowywanie pliku na serwerze...'}
+                    {progressPhase === 'extracting' && 'Łączenie z YouTube...'}
+                    {progressPhase === 'server-download' && `Pobieranie z YouTube — ${progress}%`}
+                    {progressPhase === 'merging' && 'Łączenie video i audio...'}
+                    {progressPhase === 'transferring' && `Pobieranie do przeglądarki — ${progress}%`}
+                    {progressPhase === 'preparing' && 'Przygotowywanie...'}
                   </p>
                 </div>
               )}

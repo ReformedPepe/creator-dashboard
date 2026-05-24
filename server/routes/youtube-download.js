@@ -87,44 +87,119 @@ function buildCommonArgs() {
   return args;
 }
 
-// Run yt-dlp and collect stdout (used for metadata fetching)
-// Currently unused — info endpoint uses YouTube oEmbed API directly for speed.
-// Kept here for future use if we need yt-dlp-based metadata.
-function _runYtDlpJson(args, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const proc = ytDlp.exec(args);
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
+// --- Progress tracking via SSE ---
+// Map: jobId -> { phase, percent, fragment?, totalFragments?, status, subscribers: Set<res> }
+const progressJobs = new Map();
 
-    const timer = setTimeout(() => {
-      timedOut = true;
-      try { proc.kill('SIGKILL'); } catch {}
-      reject(new Error('TIMEOUT'));
-    }, timeoutMs);
-
-    if (proc.ytDlpProcess) {
-      proc.ytDlpProcess.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
-      proc.ytDlpProcess.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
-    }
-
-    proc.on('close', (code) => {
-      if (timedOut) return;
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-      }
-    });
-
-    proc.on('error', (err) => {
-      if (timedOut) return;
-      clearTimeout(timer);
-      reject(err);
-    });
+function publishProgress(jobId, update) {
+  const job = progressJobs.get(jobId);
+  if (!job) return;
+  Object.assign(job, update);
+  const payload = JSON.stringify({
+    phase: job.phase,
+    percent: job.percent,
+    fragment: job.fragment,
+    totalFragments: job.totalFragments,
+    status: job.status
   });
+  for (const sub of job.subscribers) {
+    try {
+      sub.write(`data: ${payload}\n\n`);
+    } catch {
+      // ignore broken subscribers
+    }
+  }
 }
+
+function closeProgressJob(jobId) {
+  const job = progressJobs.get(jobId);
+  if (!job) return;
+  for (const sub of job.subscribers) {
+    try {
+      sub.write(`data: ${JSON.stringify({ phase: 'done', percent: 100, status: 'done' })}\n\n`);
+      sub.end();
+    } catch {}
+  }
+  progressJobs.delete(jobId);
+}
+
+// Parse yt-dlp output line for progress info.
+// Examples:
+//   [download]   1.2% of    50.4MiB at  2.10MiB/s ETA 00:23
+//   [download]   1.2% of ~50.4MiB at  2.10MiB/s ETA 00:23 (frag 3/30)
+//   [download] Destination: /tmp/yt-xxx.f140.m4a
+//   [Merger] Merging formats into "/tmp/yt-xxx.mp4"
+function parseYtDlpLine(line) {
+  // Merger phase
+  if (line.includes('[Merger]')) {
+    return { phase: 'merging', percent: 95 };
+  }
+  // ExtractAudio (mp3)
+  if (line.includes('[ExtractAudio]')) {
+    return { phase: 'merging', percent: 95 };
+  }
+  // Download progress
+  const m = line.match(/\[download\]\s+(\d+\.?\d*)%\s+of/);
+  if (m) {
+    const percent = parseFloat(m[1]);
+    // Detect fragment counter
+    const frag = line.match(/\(frag\s+(\d+)\/(\d+)\)/);
+    const update = { phase: 'downloading', percent };
+    if (frag) {
+      update.fragment = parseInt(frag[1], 10);
+      update.totalFragments = parseInt(frag[2], 10);
+    }
+    return update;
+  }
+  // Metadata extraction
+  if (line.includes('[youtube]') && line.includes('Extracting URL')) {
+    return { phase: 'extracting', percent: 0 };
+  }
+  return null;
+}
+
+// GET /youtube-progress/:jobId — SSE stream of download progress
+router.get('/youtube-progress/:jobId', (req, res) => {
+  const { jobId } = req.params;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+  res.flushHeaders?.();
+
+  let job = progressJobs.get(jobId);
+  if (!job) {
+    // Job may not be registered yet — create a placeholder so download endpoint can attach
+    job = {
+      phase: 'pending',
+      percent: 0,
+      status: 'pending',
+      subscribers: new Set()
+    };
+    progressJobs.set(jobId, job);
+  }
+  job.subscribers.add(res);
+
+  // Send current state immediately
+  res.write(`data: ${JSON.stringify({
+    phase: job.phase,
+    percent: job.percent,
+    fragment: job.fragment,
+    totalFragments: job.totalFragments,
+    status: job.status
+  })}\n\n`);
+
+  // Keep-alive comments every 15s
+  const keepAlive = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch {}
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    if (job) job.subscribers.delete(res);
+  });
+});
 
 // POST /youtube-info — fetch video metadata via YouTube oEmbed (fast, ~200ms)
 router.post('/youtube-info', async (req, res) => {
@@ -135,7 +210,6 @@ router.post('/youtube-info', async (req, res) => {
   }
 
   try {
-    // YouTube oEmbed — public, no auth, fast
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const response = await axios.get(oembedUrl, { timeout: 10000 });
     const data = response.data || {};
@@ -146,7 +220,6 @@ router.post('/youtube-info', async (req, res) => {
       uploader: data.author_name || null,
       duration: null,
       viewCount: null,
-      // We always offer all standard qualities; download endpoint has fallback chain
       availableQualities: ['1080p', '720p', '480p', '360p'],
       maxHeight: null
     });
@@ -163,21 +236,32 @@ router.post('/youtube-info', async (req, res) => {
 });
 
 router.post('/youtube-download', async (req, res) => {
-  const { url, format, quality } = req.body;
+  const { url, format, quality, jobId } = req.body;
   const tStart = Date.now();
   const log = (label) => console.log(`[youtube-download] +${Date.now() - tStart}ms ${label}`);
 
-  // Validate required fields
   if (!url || !format) {
     return res.status(400).json({ error: 'Brak wymaganych pól: url, format' });
   }
-
-  // Validate format value
   if (format !== 'mp4' && format !== 'mp3') {
     return res.status(400).json({ error: 'Brak wymaganych pól: url, format' });
   }
 
-  log(`start url=${url} format=${format} quality=${quality}`);
+  // Register progress job (if jobId provided)
+  if (jobId) {
+    let job = progressJobs.get(jobId);
+    if (!job) {
+      job = { phase: 'extracting', percent: 0, status: 'running', subscribers: new Set() };
+      progressJobs.set(jobId, job);
+    } else {
+      job.phase = 'extracting';
+      job.percent = 0;
+      job.status = 'running';
+    }
+    publishProgress(jobId, { phase: 'extracting', percent: 0, status: 'running' });
+  }
+
+  log(`start url=${url} format=${format} quality=${quality} jobId=${jobId}`);
 
   const ext = format === 'mp4' ? 'mp4' : 'mp3';
   const fileId = crypto.randomUUID();
@@ -188,11 +272,8 @@ router.post('/youtube-download', async (req, res) => {
   let timedOut = false;
 
   try {
-    // Build yt-dlp arguments
     const args = [url, '-o', tempPath, ...buildCommonArgs()];
-    // Speed up downloads: 4 fragments in parallel
     args.push('--concurrent-fragments', '4');
-    // Concise progress output to stderr (1 line per ~1% so we can log it)
     args.push('--newline');
     args.push('--progress');
 
@@ -201,23 +282,35 @@ router.post('/youtube-download', async (req, res) => {
       args.push('-f', formatStr);
       args.push('--merge-output-format', 'mp4');
     } else {
-      // mp3: extract best audio, convert to mp3
       args.push('-x', '--audio-format', 'mp3');
     }
 
-    // Execute yt-dlp with timeout
     log('yt-dlp spawn');
     const downloadPromise = new Promise((resolve, reject) => {
       ytDlpProcess = ytDlp.exec(args);
 
-      // Pipe yt-dlp output to server logs for diagnostics
       if (ytDlpProcess.ytDlpProcess) {
         let firstStdout = true;
         let firstStderr = true;
+        let stdoutBuffer = '';
+
         ytDlpProcess.ytDlpProcess.stdout?.on('data', (chunk) => {
           if (firstStdout) { log('yt-dlp first stdout'); firstStdout = false; }
-          process.stdout.write(`[yt-dlp:stdout] ${chunk.toString()}`);
+          const text = chunk.toString();
+          process.stdout.write(`[yt-dlp:stdout] ${text}`);
+
+          // Parse line by line for progress
+          stdoutBuffer += text;
+          const lines = stdoutBuffer.split('\n');
+          stdoutBuffer = lines.pop() || '';
+          for (const line of lines) {
+            if (jobId) {
+              const update = parseYtDlpLine(line);
+              if (update) publishProgress(jobId, update);
+            }
+          }
         });
+
         ytDlpProcess.ytDlpProcess.stderr?.on('data', (chunk) => {
           if (firstStderr) { log('yt-dlp first stderr'); firstStderr = false; }
           process.stderr.write(`[yt-dlp:stderr] ${chunk.toString()}`);
@@ -243,25 +336,21 @@ router.post('/youtube-download', async (req, res) => {
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
         timedOut = true;
-        // Kill the yt-dlp process
-        if (ytDlpProcess) {
-          ytDlpProcess.kill('SIGKILL');
-        }
+        if (ytDlpProcess) ytDlpProcess.kill('SIGKILL');
         reject(new Error('TIMEOUT'));
       }, TIMEOUT_MS);
     });
 
     await Promise.race([downloadPromise, timeoutPromise]);
-
-    // Clear timeout on success
     if (timeoutId) clearTimeout(timeoutId);
 
-    // Verify file exists
     if (!fs.existsSync(tempPath)) {
+      if (jobId) publishProgress(jobId, { phase: 'error', status: 'error' });
       return res.status(400).json({ error: 'Film jest niedostępny lub link jest nieprawidłowy' });
     }
 
-    // Set response headers
+    if (jobId) publishProgress(jobId, { phase: 'transferring', percent: 100, status: 'transferring' });
+
     const filename = `download_${fileId}.${ext}`;
     const contentType = format === 'mp4' ? 'video/mp4' : 'audio/mpeg';
     const fileSize = fs.statSync(tempPath).size;
@@ -271,25 +360,27 @@ router.post('/youtube-download', async (req, res) => {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', String(fileSize));
 
-    // Stream file to client
     const fileStream = fs.createReadStream(tempPath);
     fileStream.pipe(res);
 
-    // Wait for stream to finish before cleanup
     await new Promise((resolve, reject) => {
       fileStream.on('end', resolve);
       fileStream.on('error', reject);
     });
     log(`done`);
+
+    if (jobId) closeProgressJob(jobId);
   } catch (err) {
-    // Clear timeout if still pending
     if (timeoutId) clearTimeout(timeoutId);
+    if (jobId) {
+      publishProgress(jobId, { phase: 'error', status: 'error' });
+      closeProgressJob(jobId);
+    }
 
     if (err.message === 'TIMEOUT') {
       return res.status(408).json({ error: 'Przekroczono limit czasu pobierania' });
     }
 
-    // Check if it's an unavailable video error
     const errorMsg = err.message || '';
     if (
       errorMsg.includes('Video unavailable') ||
@@ -303,7 +394,6 @@ router.post('/youtube-download', async (req, res) => {
     console.error('[youtube-download] Error:', err.message);
     return res.status(500).json({ error: 'Błąd podczas pobierania pliku' });
   } finally {
-    // Cleanup temp file
     if (fs.existsSync(tempPath)) {
       fs.unlinkSync(tempPath);
     }
