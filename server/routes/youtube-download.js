@@ -63,8 +63,10 @@ const QUALITY_MAP_MERGED = {
 };
 
 // Single-stream format strings — pick a single mp4 file with both video+audio.
-// YouTube provides these for <=720p typically. If unavailable, the route falls back to merged mode.
+// YouTube provides these for <=720p typically, sometimes also for 1080p.
+// If unavailable, the route falls back to merged mode.
 const QUALITY_MAP_SINGLE = {
+  '1080p': 'best[ext=mp4][height<=1080][vcodec^=avc1][acodec!=none]/best[ext=mp4][height<=1080][acodec!=none]',
   '720p': 'best[ext=mp4][height<=720][vcodec^=avc1][acodec!=none]/best[ext=mp4][height<=720][acodec!=none]',
   '480p': 'best[ext=mp4][height<=480][vcodec^=avc1][acodec!=none]/best[ext=mp4][height<=480][acodec!=none]',
   '360p': 'best[ext=mp4][height<=360][vcodec^=avc1][acodec!=none]/best[ext=mp4][height<=360][acodec!=none]'
@@ -326,7 +328,8 @@ async function downloadMergedMode({ url, format, quality, jobId, res, log }) {
 
 // STREAM MODE — single-stream download piped directly stdout → res.
 // Client receives bytes while yt-dlp is still fetching from YouTube.
-// Used for 720p/480p/360p and mp3.
+// Works only when YouTube provides a single mp4 file with both video+audio.
+// If yt-dlp fails before writing to stdout, throws Error('NO_SINGLE_STREAM') for fallback.
 async function downloadStreamMode({ url, format, quality, jobId, res, log }) {
   const ext = format === 'mp4' ? 'mp4' : 'mp3';
 
@@ -334,6 +337,7 @@ async function downloadStreamMode({ url, format, quality, jobId, res, log }) {
   let timeoutId = null;
   let timedOut = false;
   let headersSent = false;
+  let stdoutStarted = false;
 
   try {
     // -o - means write to stdout
@@ -357,27 +361,34 @@ async function downloadStreamMode({ url, format, quality, jobId, res, log }) {
     const filename = `download_${crypto.randomUUID()}.${ext}`;
     const contentType = format === 'mp4' ? 'video/mp4' : 'audio/mpeg';
 
-    // Send headers immediately — we don't know Content-Length, that's the trade-off
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Transfer-Encoding', 'chunked');
-    headersSent = true;
-
     if (jobId) publishProgress(jobId, { phase: 'transferring', percent: 0, status: 'transferring' });
 
     const downloadPromise = new Promise((resolve, reject) => {
       ytDlpProcess = ytDlp.exec(args);
       const child = ytDlpProcess.ytDlpProcess;
+      let stderrCollected = '';
 
       if (child) {
-        // stdout → res (the file content)
-        child.stdout.pipe(res, { end: false });
+        // stdout → res (lazy: send headers only on first byte, so we can fallback if yt-dlp errors first)
+        child.stdout.on('data', (chunk) => {
+          if (!stdoutStarted) {
+            stdoutStarted = true;
+            // Now we know yt-dlp is producing output, send headers and start piping
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Transfer-Encoding', 'chunked');
+            headersSent = true;
+            log('first stdout byte, headers sent');
+          }
+          res.write(chunk);
+        });
 
         // stderr → logs + progress parsing (yt-dlp writes progress to stderr in stdout-pipe mode)
         let stderrBuffer = '';
         child.stderr.on('data', (chunk) => {
           const text = chunk.toString();
           process.stderr.write(`[yt-dlp:stderr] ${text}`);
+          stderrCollected += text;
           stderrBuffer += text;
           const lines = stderrBuffer.split('\n');
           stderrBuffer = lines.pop() || '';
@@ -390,16 +401,32 @@ async function downloadStreamMode({ url, format, quality, jobId, res, log }) {
         });
 
         child.stdout.on('error', (err) => {
-          // Client disconnected
           log(`stdout error: ${err.message}`);
         });
       }
 
       ytDlpProcess.on('close', (code) => {
         if (timedOut) return;
-        log(`yt-dlp close code=${code} (stream)`);
-        if (code === 0) resolve();
-        else reject(new Error(`yt-dlp exited with code ${code}`));
+        log(`yt-dlp close code=${code} (stream) stdoutStarted=${stdoutStarted}`);
+        if (code === 0) {
+          resolve();
+        } else if (!stdoutStarted) {
+          // Failed before producing any output — likely format not available
+          // Detect "Requested format is not available" or similar
+          if (
+            stderrCollected.includes('Requested format is not available') ||
+            stderrCollected.includes('No video formats found') ||
+            stderrCollected.includes('Only images are available')
+          ) {
+            const err = new Error('NO_SINGLE_STREAM');
+            err.code = 'NO_SINGLE_STREAM';
+            reject(err);
+          } else {
+            reject(new Error(`yt-dlp exited with code ${code}`));
+          }
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code} (after streaming started)`));
+        }
       });
 
       ytDlpProcess.on('error', (err) => {
@@ -462,20 +489,28 @@ router.post('/youtube-download', async (req, res) => {
     publishProgress(jobId, { phase: 'extracting', percent: 0, status: 'running' });
   }
 
-  // Decide mode: mp3 + 720p/480p/360p use stream mode (instant, no merge needed).
-  // 1080p uses merged mode (separate video+audio streams require ffmpeg merge).
-  const useStreamMode =
-    format === 'mp3' ||
-    (format === 'mp4' && quality !== '1080p');
+  // Try stream mode first for all qualities + mp3 (instant start, no merge needed).
+  // If single-stream format unavailable (typical for some 1080p videos), fall back to merged mode.
+  const tryStreamFirst = true;
 
-  log(`start url=${url} format=${format} quality=${quality} jobId=${jobId} mode=${useStreamMode ? 'stream' : 'merged'}`);
+  log(`start url=${url} format=${format} quality=${quality} jobId=${jobId} mode=${tryStreamFirst ? 'stream-first' : 'merged'}`);
 
   try {
-    if (useStreamMode) {
-      await downloadStreamMode({ url, format, quality, jobId, res, log });
-    } else {
-      await downloadMergedMode({ url, format, quality, jobId, res, log });
+    if (tryStreamFirst) {
+      try {
+        await downloadStreamMode({ url, format, quality, jobId, res, log });
+        if (jobId) closeProgressJob(jobId);
+        return;
+      } catch (err) {
+        if (err.code === 'NO_SINGLE_STREAM' && !res.headersSent) {
+          log('falling back to merged mode (no single-stream available)');
+          // continue to merged mode below
+        } else {
+          throw err;
+        }
+      }
     }
+    await downloadMergedMode({ url, format, quality, jobId, res, log });
     if (jobId) closeProgressJob(jobId);
   } catch (err) {
     if (jobId) {
