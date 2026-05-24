@@ -4,10 +4,10 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const axios = require('axios');
 const { execSync } = require('child_process');
 
 const TIMEOUT_MS = 300000; // 300 seconds
-const INFO_TIMEOUT_MS = 30000; // 30 seconds for metadata fetch
 
 // Download yt-dlp binary via curl if not present
 const ytDlpPath = path.join(__dirname, '..', 'yt-dlp');
@@ -87,7 +87,9 @@ function buildCommonArgs() {
 }
 
 // Run yt-dlp and collect stdout (used for metadata fetching)
-function runYtDlpJson(args, timeoutMs) {
+// Currently unused — info endpoint uses YouTube oEmbed API directly for speed.
+// Kept here for future use if we need yt-dlp-based metadata.
+function _runYtDlpJson(args, timeoutMs) {
   return new Promise((resolve, reject) => {
     const proc = ytDlp.exec(args);
     let stdout = '';
@@ -101,7 +103,6 @@ function runYtDlpJson(args, timeoutMs) {
     }, timeoutMs);
 
     if (proc.ytDlpProcess) {
-      // yt-dlp-wrap exposes the underlying child_process via .ytDlpProcess
       proc.ytDlpProcess.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
       proc.ytDlpProcess.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
     }
@@ -124,7 +125,7 @@ function runYtDlpJson(args, timeoutMs) {
   });
 }
 
-// POST /youtube-info — fetch video metadata (title, thumbnail, duration, available qualities)
+// POST /youtube-info — fetch video metadata via YouTube oEmbed (fast, ~200ms)
 router.post('/youtube-info', async (req, res) => {
   const { url } = req.body;
 
@@ -133,66 +134,29 @@ router.post('/youtube-info', async (req, res) => {
   }
 
   try {
-    const args = [url, '--dump-single-json', '--no-warnings', ...buildCommonArgs()];
-    const stdout = await runYtDlpJson(args, INFO_TIMEOUT_MS);
-
-    let info;
-    try {
-      info = JSON.parse(stdout);
-    } catch (e) {
-      console.error('[youtube-info] Failed to parse JSON:', e.message);
-      return res.status(500).json({ error: 'Nie udało się odczytać informacji o filmie' });
-    }
-
-    // Extract list of available video heights (for quality selector)
-    const heights = new Set();
-    if (Array.isArray(info.formats)) {
-      for (const fmt of info.formats) {
-        if (fmt.vcodec && fmt.vcodec !== 'none' && typeof fmt.height === 'number') {
-          heights.add(fmt.height);
-        }
-      }
-    }
-    // Map to standard buckets we offer
-    const standardQualities = [1080, 720, 480, 360];
-    const maxAvailable = Math.max(...heights, 0);
-    const availableQualities = standardQualities
-      .filter(h => h <= maxAvailable)
-      .map(h => `${h}p`);
-
-    // If video has higher than 1080p available, still include 1080p
-    if (maxAvailable >= 1080 && !availableQualities.includes('1080p')) {
-      availableQualities.unshift('1080p');
-    }
-    // Always include at least 360p as fallback
-    if (availableQualities.length === 0) {
-      availableQualities.push('360p');
-    }
+    // YouTube oEmbed — public, no auth, fast
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const response = await axios.get(oembedUrl, { timeout: 10000 });
+    const data = response.data || {};
 
     return res.json({
-      title: info.title || 'Bez tytułu',
-      thumbnail: info.thumbnail || (Array.isArray(info.thumbnails) && info.thumbnails.length > 0 ? info.thumbnails[info.thumbnails.length - 1].url : null),
-      duration: typeof info.duration === 'number' ? info.duration : null,
-      uploader: info.uploader || info.channel || null,
-      viewCount: typeof info.view_count === 'number' ? info.view_count : null,
-      availableQualities,
-      maxHeight: maxAvailable || null
+      title: data.title || 'Bez tytułu',
+      thumbnail: data.thumbnail_url || null,
+      uploader: data.author_name || null,
+      duration: null,
+      viewCount: null,
+      // We always offer all standard qualities; download endpoint has fallback chain
+      availableQualities: ['1080p', '720p', '480p', '360p'],
+      maxHeight: null
     });
   } catch (err) {
-    if (err.message === 'TIMEOUT') {
-      return res.status(408).json({ error: 'Przekroczono limit czasu pobierania informacji' });
+    if (err.response) {
+      const status = err.response.status;
+      if (status === 401 || status === 404) {
+        return res.status(400).json({ error: 'Film jest niedostępny lub link jest nieprawidłowy' });
+      }
     }
-    const errorMsg = err.message || '';
-    if (
-      errorMsg.includes('Video unavailable') ||
-      errorMsg.includes('Private video') ||
-      errorMsg.includes('is not a valid URL') ||
-      errorMsg.includes('Unsupported URL') ||
-      errorMsg.includes('Sign in')
-    ) {
-      return res.status(400).json({ error: 'Film jest niedostępny lub link jest nieprawidłowy' });
-    }
-    console.error('[youtube-info] Error:', errorMsg);
+    console.error('[youtube-info] Error:', err.message);
     return res.status(500).json({ error: 'Nie udało się pobrać informacji o filmie' });
   }
 });
