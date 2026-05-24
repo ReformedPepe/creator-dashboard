@@ -68,7 +68,6 @@ router.post('/youtube-download', async (req, res) => {
     args.push('--add-header', 'Accept-Language:en-US,en;q=0.9');
     args.push('--sleep-interval', '1');
     args.push('--no-check-certificates');
-    args.push('--no-update-net-rc');
 
     // Copy cookies from read-only secret to writable tmp location (yt-dlp may try to update the file)
     const secretCookiesPath = '/etc/secrets/cookies.txt';
