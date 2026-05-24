@@ -1,55 +1,126 @@
 // YouTubeDownloaderPage — pobieranie filmów i audio z YouTube
 import { useState, useEffect } from 'react';
-import { Download, Loader2, X } from 'lucide-react';
+import { Download, Loader2, X, Search, Clock, Eye } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import { validateYouTubeUrl } from '../utils/youtubeUrlValidator';
 
-const QUALITIES = ['1080p', '720p', '480p', '360p'];
+const ALL_QUALITIES = ['1080p', '720p', '480p', '360p'];
+
+function formatDuration(seconds) {
+  if (!seconds || seconds < 0) return '';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function formatViews(count) {
+  if (!count && count !== 0) return '';
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
+}
 
 export default function YouTubeDownloaderPage() {
   const [url, setUrl] = useState('');
-  const [format, setFormat] = useState('mp4');       // 'mp4' | 'mp3'
-  const [quality, setQuality] = useState('720p');    // '1080p' | '720p' | '480p' | '360p'
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [downloadError, setDownloadError] = useState(null);
   const [urlValid, setUrlValid] = useState(false);
+  const [urlError, setUrlError] = useState(null);
+
+  // Video info state
+  const [videoInfo, setVideoInfo] = useState(null);
+  const [fetchingInfo, setFetchingInfo] = useState(false);
+
+  // Download state
+  const [format, setFormat] = useState('mp4');
+  const [quality, setQuality] = useState('720p');
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [downloadError, setDownloadError] = useState(null);
 
   // Debounced URL validation (300ms)
   useEffect(() => {
     if (url.trim() === '') {
       setUrlValid(false);
-      setError(null);
+      setUrlError(null);
       return;
     }
 
     const timer = setTimeout(() => {
       const result = validateYouTubeUrl(url);
       setUrlValid(result.valid);
-      if (!result.valid) {
-        setError('Nieprawidłowy link YouTube');
-      } else {
-        setError(null);
-      }
+      setUrlError(result.valid ? null : 'Nieprawidłowy link YouTube');
     }, 300);
 
     return () => clearTimeout(timer);
   }, [url]);
 
-  // Reset quality to 720p when switching back to MP4
-  const handleFormatChange = (newFormat) => {
-    setFormat(newFormat);
-    if (newFormat === 'mp4') {
-      setQuality('720p');
+  // When URL changes, reset video info (user must search again)
+  useEffect(() => {
+    setVideoInfo(null);
+    setDownloadError(null);
+  }, [url]);
+
+  // Reset quality to highest available when video info changes
+  useEffect(() => {
+    if (videoInfo && videoInfo.availableQualities.length > 0) {
+      // Pick the highest available <= 720p as default, or highest available if all are below 720p
+      const preferred = videoInfo.availableQualities.includes('720p') ? '720p' : videoInfo.availableQualities[0];
+      setQuality(preferred);
+    }
+  }, [videoInfo]);
+
+  const handleSearch = async () => {
+    if (!urlValid || fetchingInfo) return;
+
+    setFetchingInfo(true);
+    setDownloadError(null);
+    setVideoInfo(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/tools/youtube-info`,
+        { url },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 35000,
+        }
+      );
+
+      setVideoInfo(response.data);
+    } catch (err) {
+      let message = 'Nie udało się pobrać informacji o filmie';
+      if (err.response?.data?.error) {
+        message = err.response.data.error;
+      } else if (!err.response) {
+        message = 'Błąd połączenia z serwerem. Spróbuj ponownie.';
+      }
+      setDownloadError(message);
+    } finally {
+      setFetchingInfo(false);
     }
   };
 
-  // Download handler
+  const handleFormatChange = (newFormat) => {
+    setFormat(newFormat);
+    if (newFormat === 'mp4' && videoInfo) {
+      const preferred = videoInfo.availableQualities.includes('720p') ? '720p' : videoInfo.availableQualities[0];
+      setQuality(preferred || '720p');
+    }
+  };
+
   const handleDownload = async () => {
-    if (isDownloadDisabled) return;
+    if (!videoInfo || loading) return;
 
     setLoading(true);
+    setProgress(0);
     setDownloadError(null);
 
     try {
@@ -65,6 +136,15 @@ export default function YouTubeDownloaderPage() {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
+          onDownloadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+              setProgress(percent);
+            } else if (progressEvent.loaded) {
+              // No total available — show indeterminate (cap at 90 to indicate ongoing)
+              setProgress((prev) => (prev < 90 ? prev + 1 : prev));
+            }
+          },
         }
       );
 
@@ -77,6 +157,11 @@ export default function YouTubeDownloaderPage() {
           filename = match[1];
         }
       }
+      // Use video title if available
+      if (videoInfo.title) {
+        const safeName = videoInfo.title.replace(/[/\\:*?"<>|]/g, '').slice(0, 100);
+        filename = `${safeName}.${format}`;
+      }
 
       // Trigger download via hidden <a> element
       const objectUrl = URL.createObjectURL(response.data);
@@ -87,14 +172,14 @@ export default function YouTubeDownloaderPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
+
+      setProgress(100);
     } catch (err) {
       let message = 'Wystąpił błąd podczas pobierania. Spróbuj ponownie.';
 
       if (err.response) {
         const status = err.response.status;
-
         try {
-          // When axios returns a blob error, we need to read it as text
           let parsed = {};
           if (err.response.data instanceof Blob) {
             const text = await err.response.data.text();
@@ -102,14 +187,14 @@ export default function YouTubeDownloaderPage() {
           } else {
             parsed = err.response.data;
           }
-
           if (status === 429) {
             const minutes = parsed.retryAfterMinutes || '?';
             message = `Przekroczono limit 10 pobrań/h. Spróbuj za ${minutes} minut.`;
           } else if (status === 400) {
-            message = 'Film jest niedostępny lub prywatny';
+            message = parsed.error || 'Film jest niedostępny lub prywatny';
+          } else if (status === 408) {
+            message = 'Przekroczono limit czasu pobierania';
           }
-          // 500 or other: use default message
         } catch {
           // JSON parse failed, use default message
         }
@@ -123,7 +208,17 @@ export default function YouTubeDownloaderPage() {
     }
   };
 
-  const isDownloadDisabled = !url.trim() || !urlValid || loading;
+  const handleReset = () => {
+    setUrl('');
+    setVideoInfo(null);
+    setDownloadError(null);
+    setProgress(0);
+  };
+
+  // Filter standard qualities by what's actually available
+  const availableQualities = videoInfo
+    ? ALL_QUALITIES.filter(q => videoInfo.availableQualities.includes(q))
+    : ALL_QUALITIES;
 
   return (
     <div className="space-y-6">
@@ -136,25 +231,45 @@ export default function YouTubeDownloaderPage() {
         </div>
 
         <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-6">
-          {/* URL Input */}
+          {/* URL Input + Search button */}
           <div className="space-y-2">
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Wklej link do filmu YouTube"
-              maxLength={200}
-              disabled={loading}
-              className="w-full px-4 py-3 rounded-lg bg-[#0A0A0A] border border-[#2A2A2A] text-white text-sm placeholder-[#555] focus:outline-none focus:border-[#444] transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            />
-            {error && url.trim() !== '' && (
-              <p className="text-sm text-red-500">
-                {error}
-              </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && urlValid && !fetchingInfo && !loading) {
+                    handleSearch();
+                  }
+                }}
+                placeholder="Wklej link do filmu YouTube"
+                maxLength={200}
+                disabled={fetchingInfo || loading}
+                className="flex-1 px-4 py-3 rounded-lg bg-[#0A0A0A] border border-[#2A2A2A] text-white text-sm placeholder-[#555] focus:outline-none focus:border-[#444] transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              />
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={!urlValid || fetchingInfo || loading}
+                className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-[0.4] disabled:cursor-not-allowed cursor-pointer bg-[#E53935] hover:bg-[#EF5350] sm:w-32"
+              >
+                {fetchingInfo ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" />
+                    Znajdź
+                  </>
+                )}
+              </button>
+            </div>
+            {urlError && url.trim() !== '' && (
+              <p className="text-sm text-red-500">{urlError}</p>
             )}
           </div>
 
-          {/* Download Error Banner */}
+          {/* Error Banner */}
           {downloadError && (
             <div className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
               <p className="text-sm text-red-400">{downloadError}</p>
@@ -168,101 +283,166 @@ export default function YouTubeDownloaderPage() {
             </div>
           )}
 
-          {/* Format Selector */}
-          <div className="space-y-2">
-            <label className="text-sm text-[#A1A1AA]">Format</label>
-            <div className="flex gap-0">
+          {/* Video Info Card */}
+          {videoInfo && (
+            <div className="space-y-4 rounded-lg border border-[#1E1E1E] bg-[#0A0A0A] p-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                {videoInfo.thumbnail && (
+                  <div className="relative shrink-0 sm:w-48 rounded-lg overflow-hidden bg-[#0A0A0A]">
+                    <img
+                      src={videoInfo.thumbnail}
+                      alt={videoInfo.title}
+                      className="w-full h-auto aspect-video object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    {videoInfo.duration && (
+                      <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-[11px] font-medium">
+                        {formatDuration(videoInfo.duration)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 space-y-2">
+                  <h3 className="text-sm font-semibold text-white line-clamp-2">{videoInfo.title}</h3>
+                  {videoInfo.uploader && (
+                    <p className="text-xs text-[#A1A1AA]">{videoInfo.uploader}</p>
+                  )}
+                  <div className="flex items-center gap-3 text-xs text-[#888]">
+                    {videoInfo.duration && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(videoInfo.duration)}
+                      </span>
+                    )}
+                    {videoInfo.viewCount !== null && (
+                      <span className="flex items-center gap-1">
+                        <Eye className="h-3 w-3" />
+                        {formatViews(videoInfo.viewCount)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Format Selector */}
+              <div className="space-y-2">
+                <label className="text-sm text-[#A1A1AA]">Format</label>
+                <div className="flex gap-0">
+                  <button
+                    type="button"
+                    onClick={() => handleFormatChange('mp4')}
+                    disabled={loading}
+                    className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-l-lg border transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${
+                      format === 'mp4'
+                        ? 'bg-[#E53935] border-[#E53935] text-white'
+                        : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
+                    }`}
+                  >
+                    MP4 (wideo)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFormatChange('mp3')}
+                    disabled={loading}
+                    className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-r-lg border border-l-0 transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${
+                      format === 'mp3'
+                        ? 'bg-[#E53935] border-[#E53935] text-white'
+                        : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
+                    }`}
+                  >
+                    MP3 (audio)
+                  </button>
+                </div>
+              </div>
+
+              {/* Quality Selector — visible only for MP4 */}
+              {format === 'mp4' && availableQualities.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm text-[#A1A1AA]">Jakość</label>
+                  <div className="flex gap-0">
+                    {availableQualities.map((q, index) => {
+                      const isFirst = index === 0;
+                      const isLast = index === availableQualities.length - 1;
+                      const roundedClass = isFirst && isLast
+                        ? 'rounded-lg'
+                        : isFirst
+                          ? 'rounded-l-lg'
+                          : isLast
+                            ? 'rounded-r-lg'
+                            : '';
+                      const borderClass = index > 0 ? 'border-l-0' : '';
+
+                      return (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => setQuality(q)}
+                          disabled={loading}
+                          className={`flex-1 px-3 py-2.5 text-sm font-medium border transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${roundedClass} ${borderClass} ${
+                            quality === q
+                              ? 'bg-[#E53935] border-[#E53935] text-white'
+                              : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
+                          }`}
+                        >
+                          {q}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Download Button */}
               <button
                 type="button"
-                onClick={() => handleFormatChange('mp4')}
+                onClick={handleDownload}
                 disabled={loading}
-                className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-l-lg border transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${
-                  format === 'mp4'
-                    ? 'bg-[#E53935] border-[#E53935] text-white'
-                    : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
-                }`}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-[0.4] disabled:cursor-not-allowed cursor-pointer bg-[#E53935] hover:bg-[#EF5350]"
               >
-                MP4 (wideo)
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Pobieranie... {progress > 0 && `${progress}%`}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Pobierz
+                  </>
+                )}
               </button>
-              <button
-                type="button"
-                onClick={() => handleFormatChange('mp3')}
-                disabled={loading}
-                className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-r-lg border border-l-0 transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${
-                  format === 'mp3'
-                    ? 'bg-[#E53935] border-[#E53935] text-white'
-                    : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
-                }`}
-              >
-                MP3 (audio)
-              </button>
-            </div>
-          </div>
 
-          {/* Quality Selector — visible only for MP4 */}
-          {format === 'mp4' && (
-            <div className="space-y-2">
-              <label className="text-sm text-[#A1A1AA]">Jakość</label>
-              <div className="flex gap-0">
-                {QUALITIES.map((q, index) => {
-                  const isFirst = index === 0;
-                  const isLast = index === QUALITIES.length - 1;
-                  const roundedClass = isFirst
-                    ? 'rounded-l-lg'
-                    : isLast
-                      ? 'rounded-r-lg'
-                      : '';
-                  const borderClass = index > 0 ? 'border-l-0' : '';
+              {/* Progress Bar */}
+              {loading && (
+                <div className="space-y-2">
+                  <div className="w-full h-2 rounded-full bg-[#2A2A2A] overflow-hidden relative">
+                    {progress > 0 ? (
+                      <div
+                        className="h-full rounded-full bg-[#E53935] transition-all duration-200 ease-out"
+                        style={{ width: `${progress}%` }}
+                      />
+                    ) : (
+                      <div className="absolute top-0 left-0 h-full w-1/3 rounded-full bg-[#E53935] animate-progress-indeterminate" />
+                    )}
+                  </div>
+                  <p className="text-xs text-[#888] text-center">
+                    {progress > 0
+                      ? `Pobieranie pliku... ${progress}%`
+                      : 'Przygotowywanie pliku na serwerze...'}
+                  </p>
+                </div>
+              )}
 
-                  return (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setQuality(q)}
-                      disabled={loading}
-                      className={`flex-1 px-3 py-2.5 text-sm font-medium border transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed ${roundedClass} ${borderClass} ${
-                        quality === q
-                          ? 'bg-[#E53935] border-[#E53935] text-white'
-                          : 'bg-[#0A0A0A] border-[#2A2A2A] text-[#A1A1AA] hover:bg-[#1A1A1A]'
-                      }`}
-                    >
-                      {q}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Download Button */}
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={isDownloadDisabled}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-[0.4] disabled:cursor-not-allowed cursor-pointer bg-[#E53935] hover:bg-[#EF5350]"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Pobieranie...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Pobierz
-              </>
-            )}
-          </button>
-
-          {/* Progress Bar — indeterminate, shown during loading */}
-          {loading && (
-            <div className="space-y-2">
-              <div className="w-full h-2 rounded-full bg-[#2A2A2A] overflow-hidden relative">
-                <div
-                  className="absolute top-0 left-0 h-full w-1/3 rounded-full bg-[#E53935] animate-progress-indeterminate"
-                />
-              </div>
-              <p className="text-xs text-[#888] text-center">Pobieranie pliku... To może chwilę potrwać.</p>
+              {/* Reset/new search */}
+              {!loading && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="text-xs text-[#888] hover:text-white transition-colors cursor-pointer"
+                >
+                  ← Wybierz inny film
+                </button>
+              )}
             </div>
           )}
         </div>
