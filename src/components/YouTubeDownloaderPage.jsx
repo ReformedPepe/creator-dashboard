@@ -23,6 +23,19 @@ function formatViews(count) {
   return String(count);
 }
 
+function formatMs(ms) {
+  if (ms == null) return '–';
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '';
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
 export default function YouTubeDownloaderPage() {
   const [url, setUrl] = useState('');
   const [urlValid, setUrlValid] = useState(false);
@@ -39,6 +52,7 @@ export default function YouTubeDownloaderPage() {
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState('idle'); // 'idle' | 'preparing' | 'extracting' | 'server-download' | 'merging' | 'transferring' | 'done'
   const [downloadError, setDownloadError] = useState(null);
+  const [lastTimings, setLastTimings] = useState(null); // { totalMs, phases: {extracting, downloading, merging, transferring} }
 
   // Debounced URL validation (300ms)
   useEffect(() => {
@@ -124,6 +138,30 @@ export default function YouTubeDownloaderPage() {
     setProgress(0);
     setProgressPhase('preparing');
     setDownloadError(null);
+    setLastTimings(null);
+
+    // Timing
+    const tStart = performance.now();
+    const tEnter = (label) => {
+      const ms = Math.round(performance.now() - tStart);
+      console.log(`[yt-dl client] +${ms}ms ${label}`);
+      return ms;
+    };
+    const phaseStart = {}; // phase name -> ms timestamp when entered
+    const phaseEnd = {};   // phase name -> ms timestamp when left
+    let lastPhase = 'preparing';
+    phaseStart[lastPhase] = 0;
+
+    const enterPhase = (newPhase) => {
+      if (newPhase === lastPhase) return;
+      const now = Math.round(performance.now() - tStart);
+      phaseEnd[lastPhase] = now;
+      phaseStart[newPhase] = now;
+      console.log(`[yt-dl client] +${now}ms phase: ${lastPhase} -> ${newPhase}`);
+      lastPhase = newPhase;
+    };
+
+    tEnter('start (Pobierz clicked)');
 
     // Generate jobId for progress tracking
     const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -133,34 +171,39 @@ export default function YouTubeDownloaderPage() {
     let eventSource = null;
     try {
       eventSource = new EventSource(sseUrl);
+      eventSource.onopen = () => tEnter('SSE connected');
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.phase === 'extracting') {
+            enterPhase('extracting');
             setProgressPhase('extracting');
             setProgress(0);
           } else if (data.phase === 'downloading') {
+            enterPhase('server-download');
             setProgressPhase('server-download');
             setProgress(Math.min(Math.round(data.percent || 0), 95));
           } else if (data.phase === 'merging') {
+            enterPhase('merging');
             setProgressPhase('merging');
             setProgress(95);
           } else if (data.phase === 'transferring') {
+            enterPhase('transferring');
             setProgressPhase('transferring');
-            // keep current progress; axios onDownloadProgress will overwrite
           }
         } catch {}
       };
-      eventSource.onerror = () => {
-        // SSE connection lost — non-fatal, keep going with axios progress only
+      eventSource.onerror = (e) => {
+        console.warn('[yt-dl client] SSE error', e);
       };
-    } catch {
-      // EventSource not available — continue without SSE
+    } catch (e) {
+      console.warn('[yt-dl client] EventSource not available', e);
     }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+      tEnter('auth token ready, sending POST');
 
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/tools/youtube-download`,
@@ -172,15 +215,20 @@ export default function YouTubeDownloaderPage() {
             'Content-Type': 'application/json',
           },
           onDownloadProgress: (progressEvent) => {
-            // Once browser starts receiving file bytes, switch to transfer phase
             if (progressEvent.total) {
               const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-              setProgressPhase('transferring');
+              if (progressPhase !== 'transferring') {
+                enterPhase('transferring');
+                setProgressPhase('transferring');
+              }
               setProgress(percent);
             }
           },
         }
       );
+
+      tEnter('POST response received (full file in browser)');
+      enterPhase('done');
 
       const disposition = response.headers['content-disposition'];
       let filename = `download.${format}`;
@@ -204,8 +252,23 @@ export default function YouTubeDownloaderPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
 
+      const totalMs = tEnter('done (file saved)');
       setProgress(100);
       setProgressPhase('done');
+
+      // Compute phase durations
+      const phases = {};
+      for (const p of Object.keys(phaseStart)) {
+        const end = phaseEnd[p] ?? totalMs;
+        phases[p] = end - phaseStart[p];
+      }
+      console.log('[yt-dl client] Total:', totalMs, 'ms');
+      console.log('[yt-dl client] Phases:', phases);
+      setLastTimings({
+        totalMs,
+        fileSize: response.data?.size || 0,
+        phases
+      });
     } catch (err) {
       let message = 'Wystąpił błąd podczas pobierania. Spróbuj ponownie.';
 
@@ -236,6 +299,8 @@ export default function YouTubeDownloaderPage() {
 
       setDownloadError(message);
       setProgressPhase('idle');
+      const errMs = tEnter(`error: ${message}`);
+      console.warn('[yt-dl client] Failed after', errMs, 'ms');
     } finally {
       if (eventSource) {
         try { eventSource.close(); } catch {}
@@ -249,6 +314,7 @@ export default function YouTubeDownloaderPage() {
     setVideoInfo(null);
     setDownloadError(null);
     setProgress(0);
+    setLastTimings(null);
   };
 
   // Filter standard qualities by what's actually available
@@ -480,6 +546,32 @@ export default function YouTubeDownloaderPage() {
                 >
                   ← Wybierz inny film
                 </button>
+              )}
+
+              {/* Last download timings — diagnostic widget */}
+              {!loading && lastTimings && (
+                <div className="rounded-lg border border-[#1E1E1E] bg-[#0F0F0F] p-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#A1A1AA] font-medium">Pobrano w {formatMs(lastTimings.totalMs)}</span>
+                    {lastTimings.fileSize > 0 && (
+                      <span className="text-[#666]">{formatBytes(lastTimings.fileSize)}</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-[#666] space-y-0.5 font-mono">
+                    {lastTimings.phases.extracting !== undefined && (
+                      <div>łączenie z YouTube: {formatMs(lastTimings.phases.extracting)}</div>
+                    )}
+                    {lastTimings.phases['server-download'] !== undefined && (
+                      <div>pobieranie z YouTube: {formatMs(lastTimings.phases['server-download'])}</div>
+                    )}
+                    {lastTimings.phases.merging !== undefined && (
+                      <div>łączenie audio+video: {formatMs(lastTimings.phases.merging)}</div>
+                    )}
+                    {lastTimings.phases.transferring !== undefined && (
+                      <div>transfer do przeglądarki: {formatMs(lastTimings.phases.transferring)}</div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}
