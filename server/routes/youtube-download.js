@@ -164,6 +164,8 @@ router.post('/youtube-info', async (req, res) => {
 
 router.post('/youtube-download', async (req, res) => {
   const { url, format, quality } = req.body;
+  const tStart = Date.now();
+  const log = (label) => console.log(`[youtube-download] +${Date.now() - tStart}ms ${label}`);
 
   // Validate required fields
   if (!url || !format) {
@@ -174,6 +176,8 @@ router.post('/youtube-download', async (req, res) => {
   if (format !== 'mp4' && format !== 'mp3') {
     return res.status(400).json({ error: 'Brak wymaganych pól: url, format' });
   }
+
+  log(`start url=${url} format=${format} quality=${quality}`);
 
   const ext = format === 'mp4' ? 'mp4' : 'mp3';
   const fileId = crypto.randomUUID();
@@ -188,6 +192,9 @@ router.post('/youtube-download', async (req, res) => {
     const args = [url, '-o', tempPath, ...buildCommonArgs()];
     // Speed up downloads: 4 fragments in parallel
     args.push('--concurrent-fragments', '4');
+    // Concise progress output to stderr (1 line per ~1% so we can log it)
+    args.push('--newline');
+    args.push('--progress');
 
     if (format === 'mp4') {
       const formatStr = QUALITY_MAP[quality] || QUALITY_MAP['720p'];
@@ -199,11 +206,27 @@ router.post('/youtube-download', async (req, res) => {
     }
 
     // Execute yt-dlp with timeout
+    log('yt-dlp spawn');
     const downloadPromise = new Promise((resolve, reject) => {
       ytDlpProcess = ytDlp.exec(args);
 
+      // Pipe yt-dlp output to server logs for diagnostics
+      if (ytDlpProcess.ytDlpProcess) {
+        let firstStdout = true;
+        let firstStderr = true;
+        ytDlpProcess.ytDlpProcess.stdout?.on('data', (chunk) => {
+          if (firstStdout) { log('yt-dlp first stdout'); firstStdout = false; }
+          process.stdout.write(`[yt-dlp:stdout] ${chunk.toString()}`);
+        });
+        ytDlpProcess.ytDlpProcess.stderr?.on('data', (chunk) => {
+          if (firstStderr) { log('yt-dlp first stderr'); firstStderr = false; }
+          process.stderr.write(`[yt-dlp:stderr] ${chunk.toString()}`);
+        });
+      }
+
       ytDlpProcess.on('close', (code) => {
         if (timedOut) return;
+        log(`yt-dlp close code=${code}`);
         if (code === 0) {
           resolve();
         } else {
@@ -242,6 +265,7 @@ router.post('/youtube-download', async (req, res) => {
     const filename = `download_${fileId}.${ext}`;
     const contentType = format === 'mp4' ? 'video/mp4' : 'audio/mpeg';
     const fileSize = fs.statSync(tempPath).size;
+    log(`stream start size=${(fileSize / 1024 / 1024).toFixed(1)}MB`);
 
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', contentType);
@@ -256,6 +280,7 @@ router.post('/youtube-download', async (req, res) => {
       fileStream.on('end', resolve);
       fileStream.on('error', reject);
     });
+    log(`done`);
   } catch (err) {
     // Clear timeout if still pending
     if (timeoutId) clearTimeout(timeoutId);
