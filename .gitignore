@@ -29,3 +29,4 @@ dist-ssr
 # Server
 server/.env
 server/node_modules/
+server/yt-dlp

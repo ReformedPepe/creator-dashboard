@@ -8,6 +8,28 @@ const YTDlpWrap = require('yt-dlp-wrap').default;
 
 const TIMEOUT_MS = 300000; // 300 seconds
 
+// Path to yt-dlp binary (downloaded at startup)
+const ytDlpBinaryPath = path.join(__dirname, '..', 'yt-dlp');
+
+// Download yt-dlp binary if not present
+let ytDlp = null;
+const initPromise = (async () => {
+  try {
+    if (!fs.existsSync(ytDlpBinaryPath)) {
+      console.log('[yt-dlp] Downloading binary...');
+      await YTDlpWrap.downloadFromGithub(ytDlpBinaryPath);
+      console.log('[yt-dlp] Binary downloaded to', ytDlpBinaryPath);
+    } else {
+      console.log('[yt-dlp] Binary already exists at', ytDlpBinaryPath);
+    }
+    ytDlp = new YTDlpWrap(ytDlpBinaryPath);
+  } catch (e) {
+    console.error('[yt-dlp] Failed to initialize binary:', e.message);
+    // Try using system PATH as fallback
+    ytDlp = new YTDlpWrap();
+  }
+})();
+
 // Quality mapping for mp4 format
 const QUALITY_MAP = {
   '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
@@ -17,6 +39,13 @@ const QUALITY_MAP = {
 };
 
 router.post('/youtube-download', async (req, res) => {
+  // Wait for binary initialization to complete
+  await initPromise;
+
+  if (!ytDlp) {
+    return res.status(500).json({ error: 'yt-dlp binary nie jest dostępny' });
+  }
+
   const { url, format, quality } = req.body;
 
   // Validate required fields
@@ -38,8 +67,6 @@ router.post('/youtube-download', async (req, res) => {
   let timedOut = false;
 
   try {
-    const ytDlpWrap = new YTDlpWrap();
-
     // Build yt-dlp arguments
     const args = [url, '-o', tempPath];
 
@@ -54,7 +81,7 @@ router.post('/youtube-download', async (req, res) => {
 
     // Execute yt-dlp with timeout
     const downloadPromise = new Promise((resolve, reject) => {
-      ytDlpProcess = ytDlpWrap.exec(args);
+      ytDlpProcess = ytDlp.exec(args);
 
       ytDlpProcess.on('close', (code) => {
         if (timedOut) return;
