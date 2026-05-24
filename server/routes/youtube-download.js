@@ -4,31 +4,30 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const YTDlpWrap = require('yt-dlp-wrap').default;
+const { execSync } = require('child_process');
 
 const TIMEOUT_MS = 300000; // 300 seconds
 
-// Path to yt-dlp binary (downloaded at startup)
-const ytDlpBinaryPath = path.join(__dirname, '..', 'yt-dlp');
+// Download yt-dlp binary via curl if not present
+const ytDlpPath = path.join(__dirname, '..', 'yt-dlp');
 
-// Download yt-dlp binary if not present
-let ytDlp = null;
-const initPromise = (async () => {
-  try {
-    if (!fs.existsSync(ytDlpBinaryPath)) {
-      console.log('[yt-dlp] Downloading binary...');
-      await YTDlpWrap.downloadFromGithub(ytDlpBinaryPath);
-      console.log('[yt-dlp] Binary downloaded to', ytDlpBinaryPath);
-    } else {
-      console.log('[yt-dlp] Binary already exists at', ytDlpBinaryPath);
-    }
-    ytDlp = new YTDlpWrap(ytDlpBinaryPath);
-  } catch (e) {
-    console.error('[yt-dlp] Failed to initialize binary:', e.message);
-    // Try using system PATH as fallback
-    ytDlp = new YTDlpWrap();
+function ensureYtDlp() {
+  if (!fs.existsSync(ytDlpPath)) {
+    console.log('[yt-dlp] Downloading binary...');
+    execSync(
+      `curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ${ytDlpPath} && chmod +x ${ytDlpPath}`,
+      { stdio: 'inherit' }
+    );
+    console.log('[yt-dlp] Binary ready');
+  } else {
+    console.log('[yt-dlp] Binary already exists at', ytDlpPath);
   }
-})();
+}
+
+ensureYtDlp();
+
+const YTDlpWrap = require('yt-dlp-wrap').default;
+const ytDlp = new YTDlpWrap(ytDlpPath);
 
 // Quality mapping for mp4 format
 const QUALITY_MAP = {
@@ -39,13 +38,6 @@ const QUALITY_MAP = {
 };
 
 router.post('/youtube-download', async (req, res) => {
-  // Wait for binary initialization to complete
-  await initPromise;
-
-  if (!ytDlp) {
-    return res.status(500).json({ error: 'yt-dlp binary nie jest dostępny' });
-  }
-
   const { url, format, quality } = req.body;
 
   // Validate required fields
