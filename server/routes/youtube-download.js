@@ -70,7 +70,7 @@ router.post('/youtube-download', async (req, res) => {
     args.push('--no-check-certificates');
 
     // Use cookies file if available (helps bypass bot detection)
-    const cookiesPath = path.join(__dirname, '..', 'cookies.txt');
+    const cookiesPath = '/etc/secrets/cookies.txt';
     if (fs.existsSync(cookiesPath)) {
       args.push('--cookies', cookiesPath);
     }
