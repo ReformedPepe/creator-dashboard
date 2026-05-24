@@ -169,12 +169,23 @@ export default function YouTubeDownloaderPage() {
     // Open SSE connection for backend progress
     const sseUrl = `${import.meta.env.VITE_API_URL}/api/tools/youtube-progress/${jobId}`;
     let eventSource = null;
+    let sseClosedByUs = false;
+    const closeSse = () => {
+      if (eventSource && !sseClosedByUs) {
+        sseClosedByUs = true;
+        try { eventSource.close(); } catch {}
+      }
+    };
     try {
       eventSource = new EventSource(sseUrl);
       eventSource.onopen = () => tEnter('SSE connected');
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data.phase === 'done' || data.status === 'done') {
+            closeSse();
+            return;
+          }
           if (data.phase === 'extracting') {
             enterPhase('extracting');
             setProgressPhase('extracting');
@@ -194,7 +205,13 @@ export default function YouTubeDownloaderPage() {
         } catch {}
       };
       eventSource.onerror = (e) => {
-        console.warn('[yt-dl client] SSE error', e);
+        // EventSource auto-reconnects on disconnect; this fires on every reconnect attempt.
+        // Only log if we haven't intentionally closed it yet — and skip if we're already
+        // transferring (axios takes over progress reporting from here).
+        if (sseClosedByUs) return;
+        if (lastPhase === 'transferring' || lastPhase === 'done') return;
+        // Don't spam — SSE errors during normal operation are typically transient
+        // (Render keeps idle connections only briefly).
       };
     } catch (e) {
       console.warn('[yt-dl client] EventSource not available', e);
@@ -302,9 +319,7 @@ export default function YouTubeDownloaderPage() {
       const errMs = tEnter(`error: ${message}`);
       console.warn('[yt-dl client] Failed after', errMs, 'ms');
     } finally {
-      if (eventSource) {
-        try { eventSource.close(); } catch {}
-      }
+      closeSse();
       setLoading(false);
     }
   };
