@@ -51,12 +51,12 @@ ensureDeno();
 const YTDlpWrap = require('yt-dlp-wrap').default;
 const ytDlp = new YTDlpWrap(ytDlpPath);
 
-// Quality mapping for mp4 format
+// Quality mapping for mp4 format — force H.264/AAC for universal compatibility (QuickTime, etc.)
 const QUALITY_MAP = {
-  '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-  '720p': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
-  '480p': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
-  '360p': 'bestvideo[height<=360]+bestaudio/best[height<=360]'
+  '1080p': 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=1080][vcodec^=avc1]/best[height<=1080]',
+  '720p': 'bestvideo[height<=720][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=720][vcodec^=avc1]/best[height<=720]',
+  '480p': 'bestvideo[height<=480][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=480][vcodec^=avc1]/best[height<=480]',
+  '360p': 'bestvideo[height<=360][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=360][vcodec^=avc1]/best[height<=360]'
 };
 
 router.post('/youtube-download', async (req, res) => {

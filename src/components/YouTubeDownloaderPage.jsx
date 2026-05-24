@@ -256,8 +256,13 @@ export default function YouTubeDownloaderPage() {
 
           {/* Progress Bar — indeterminate, shown during loading */}
           {loading && (
-            <div className="w-full h-2 rounded-full bg-[#2A2A2A] overflow-hidden">
-              <div className="h-full rounded-full bg-[#E53935] animate-pulse w-full" />
+            <div className="space-y-2">
+              <div className="w-full h-2 rounded-full bg-[#2A2A2A] overflow-hidden relative">
+                <div
+                  className="absolute top-0 left-0 h-full w-1/3 rounded-full bg-[#E53935] animate-progress-indeterminate"
+                />
+              </div>
+              <p className="text-xs text-[#888] text-center">Pobieranie pliku... To może chwilę potrwać.</p>
             </div>
           )}
         </div>
