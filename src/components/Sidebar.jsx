@@ -2,7 +2,7 @@
 // Desktop: icons always positioned at center of 64px column (collapsed width).
 // Mobile: always full width (240px), hidden off-screen by default, overlay when open.
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Radio, Settings, BarChart2, User, LogOut, PanelLeft, PanelRight, X, Wrench, FileText } from 'lucide-react';
+import { LayoutDashboard, Radio, Settings, BarChart2, User, LogOut, PanelLeft, PanelRight, X, Wrench, FileText, Scissors, Download } from 'lucide-react';
 
 const SIDEBAR_KEY = 'creator-dashboard-sidebar-collapsed';
 // Icon zone: 64px wide. Icon is 20px. Center = (64 - 20) / 2 = 22px from left.
@@ -15,7 +15,9 @@ const USER_PL = 'pl-[16px]';
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'channels', label: 'Kanały', icon: Radio },
+  { id: 'youtube-downloader', label: 'Pobieracz YT', icon: Download, section: 'tools' },
   { id: 'transcript', label: 'Transkrypcja', icon: FileText, section: 'tools' },
+  { id: 'silence-remover', label: 'Uciszacz audio', icon: Scissors, section: 'tools' },
   { id: 'settings', label: 'Ustawienia', icon: Settings },
 ];
 
