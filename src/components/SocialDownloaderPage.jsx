@@ -24,7 +24,7 @@ function platformLabel(p) {
   return '';
 }
 
-export default function SocialDownloaderPage() {
+export default function SocialDownloaderPage({ onDownloadStateChange }) {
   const [url, setUrl] = useState('');
   const [urlValid, setUrlValid] = useState(false);
   const [urlError, setUrlError] = useState(null);
@@ -41,6 +41,22 @@ export default function SocialDownloaderPage() {
   const [lastTimings, setLastTimings] = useState(null);
   const [faqOpen, setFaqOpen] = useState(false);
   const [openFaqId, setOpenFaqId] = useState(null);
+
+  // Report download state to parent (for background toast widget)
+  useEffect(() => {
+    if (!onDownloadStateChange) return;
+    if (!loading) {
+      onDownloadStateChange(null);
+    } else {
+      onDownloadStateChange({
+        filename: `download.${format}`,
+        progress,
+        phase: progressPhase,
+        error: null,
+        done: progressPhase === 'done',
+      });
+    }
+  }, [loading, progress, progressPhase, format, onDownloadStateChange]);
 
   // Debounced URL validation
   useEffect(() => {

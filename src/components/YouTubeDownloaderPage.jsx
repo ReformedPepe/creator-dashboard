@@ -36,7 +36,7 @@ function formatBytes(bytes) {
   return `${bytes} B`;
 }
 
-export default function YouTubeDownloaderPage() {
+export default function YouTubeDownloaderPage({ onDownloadStateChange }) {
   const [url, setUrl] = useState('');
   const [urlValid, setUrlValid] = useState(false);
   const [urlError, setUrlError] = useState(null);
@@ -55,6 +55,22 @@ export default function YouTubeDownloaderPage() {
   const [lastTimings, setLastTimings] = useState(null);
   const [faqOpen, setFaqOpen] = useState(false);
   const [openFaqId, setOpenFaqId] = useState(null);
+
+  // Report download state to parent (for background toast widget)
+  useEffect(() => {
+    if (!onDownloadStateChange) return;
+    if (!loading) {
+      onDownloadStateChange(null);
+    } else {
+      onDownloadStateChange({
+        filename: videoInfo?.title ? `${videoInfo.title.slice(0, 40)}.${format}` : `download.${format}`,
+        progress,
+        phase: progressPhase,
+        error: null,
+        done: progressPhase === 'done',
+      });
+    }
+  }, [loading, progress, progressPhase, format, videoInfo, onDownloadStateChange]);
 
   // Debounced URL validation (300ms)
   useEffect(() => {

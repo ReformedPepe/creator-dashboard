@@ -1,6 +1,6 @@
 // TranscriptPage — lokalna transkrypcja audio/wideo przez Whisper (WebGPU/WASM)
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Loader2, Copy, Check, Upload, Shield, X, Trash2, Download, ChevronDown, HelpCircle } from 'lucide-react';
+import { Loader2, Copy, Check, Upload, Shield, X, Trash2, Download, ChevronDown, HelpCircle, Mic } from 'lucide-react';
 import TranscribeWorker from '../workers/transcribe.worker.js?worker';
 import { isModelCached, deleteModelCache } from '../utils/modelCache';
 
@@ -346,23 +346,22 @@ export default function TranscriptPage() {
     <div className="space-y-6">
       <section>
         <div className="mb-3 flex items-center gap-2">
+          <Mic className="h-3.5 w-3.5 text-[#E53935]" />
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">Transkrypcja lokalna</span>
+          <button
+            onClick={() => setFaqOpen(true)}
+            className="ml-auto flex items-center justify-center h-6 w-6 rounded-full border border-[#2A2A2A] text-[#555] hover:text-white hover:border-[#444] transition-colors duration-200 cursor-pointer shrink-0"
+            title="Pomoc"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-4">
-          {/* Privacy notice + FAQ button */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[11px] text-[#666]">
-              <Shield className="h-3.5 w-3.5 text-green-500 shrink-0" />
-              <span>Przetwarzanie lokalne — dane nie opuszczają przeglądarki{device ? ` (${device.toUpperCase()})` : ''}.</span>
-            </div>
-            <button
-              onClick={() => setFaqOpen(true)}
-              className="flex items-center justify-center h-6 w-6 rounded-full border border-[#2A2A2A] text-[#555] hover:text-white hover:border-[#444] transition-colors duration-200 cursor-pointer shrink-0"
-              title="Pomoc"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-            </button>
+          {/* Privacy notice */}
+          <div className="flex items-center gap-2 text-[11px] text-[#666]">
+            <Shield className="h-3.5 w-3.5 text-green-500 shrink-0" />
+            <span>Przetwarzanie lokalne — dane nie opuszczają przeglądarki{device ? ` (${device.toUpperCase()})` : ''}.</span>
           </div>
 
           {/* Model selector — collapsible radio list */}
