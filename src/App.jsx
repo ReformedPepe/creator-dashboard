@@ -12,6 +12,7 @@ import TranscriptPage from './components/TranscriptPage';
 import SilenceRemoverPage from './components/SilenceRemoverPage';
 import YouTubeDownloaderPage from './components/YouTubeDownloaderPage';
 import SocialDownloaderPage from './components/SocialDownloaderPage';
+import DownloadToast from './components/DownloadToast';
 import LandingPage from './components/LandingPage';
 import { useBackend } from './hooks/useBackend';
 import { useAuth } from './hooks/useAuth';
@@ -57,6 +58,9 @@ export default function App() {
   const [videosLoading, setVideosLoading] = useState(false);
   // API key status from backend
   const [keyStatus, setKeyStatus] = useState({ youtubeKeySet: false, tiktokKeySet: false });
+
+  // Global download state for toast (reported by downloader pages)
+  const [activeDownload, setActiveDownload] = useState(null);
 
   const youtubeChannels = channels.filter(ch => ch.type === 'youtube');
   const tiktokChannels = channels.filter(ch => ch.type === 'tiktok');
@@ -346,13 +350,22 @@ export default function App() {
             <SilenceRemoverPage />
           )}
 
-          {currentView === 'youtube-downloader' && (
-            <YouTubeDownloaderPage />
-          )}
+          {/* Downloaders: keep-alive (not unmounted) so downloads continue in background */}
+          <div style={{ display: currentView === 'youtube-downloader' ? 'block' : 'none' }}>
+            <YouTubeDownloaderPage
+              onDownloadStateChange={(payload) =>
+                setActiveDownload(payload ? { ...payload, source: 'youtube-downloader' } : null)
+              }
+            />
+          </div>
 
-          {currentView === 'social-downloader' && (
-            <SocialDownloaderPage />
-          )}
+          <div style={{ display: currentView === 'social-downloader' ? 'block' : 'none' }}>
+            <SocialDownloaderPage
+              onDownloadStateChange={(payload) =>
+                setActiveDownload(payload ? { ...payload, source: 'social-downloader' } : null)
+              }
+            />
+          </div>
         </div>
       </main>
 
@@ -363,6 +376,16 @@ export default function App() {
         onDelete={deleteChannel}
         editingChannel={editingChannel}
       />
+
+      {/* Download toast — visible from any view when a download is active.
+          Click toast body (except cancel X) navigates back to the source tool. */}
+      {activeDownload && currentView !== 'youtube-downloader' && currentView !== 'social-downloader' && (
+        <DownloadToast
+          download={activeDownload}
+          onCancel={() => setActiveDownload(null)}
+          onClick={activeDownload.source ? () => setCurrentView(activeDownload.source) : undefined}
+        />
+      )}
     </div>
   );
 }
