@@ -1,6 +1,6 @@
 // SilenceRemoverPage — lokalne usuwanie ciszy z plików audio (Web Audio API)
 import { useState, useRef, useCallback } from 'react';
-import { Shield, Upload, X, FileAudio, Loader2, Download } from 'lucide-react';
+import { Shield, Upload, X, FileAudio, Loader2, Download, Cpu } from 'lucide-react';
 import {
   decodeAudioFile,
   analyzeSilence,
@@ -201,7 +201,8 @@ export default function SilenceRemoverPage() {
     <div className="space-y-6">
       <section>
         {/* Header */}
-        <div className="mb-3">
+        <div className="mb-3 flex items-center gap-2">
+          <Cpu className="h-3.5 w-3.5 text-[#E53935]" />
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">
             PRZETWARZANIE LOKALNE
           </span>

@@ -279,7 +279,7 @@ export default function App() {
         <div className="dotted-bg min-h-screen p-4 md:p-6">
           {/* Topbar — always rendered first, same position regardless of view */}
           <Topbar
-            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : currentView === 'youtube-downloader' ? 'Pobieracz YouTube' : currentView === 'social-downloader' ? 'Pobieracz TikTok / X' : currentView === 'transcript' ? 'Transkrypcja' : currentView === 'silence-remover' ? 'Uciszacz audio' : 'Ustawienia'}
+            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : currentView === 'youtube-downloader' ? 'YouTube Downloader' : currentView === 'social-downloader' ? 'Social Downloader' : currentView === 'transcript' ? 'Transkrypcja' : currentView === 'silence-remover' ? 'Silence Remover' : 'Ustawienia'}
             onRefresh={(currentView === 'dashboard' || currentView === 'channels') ? handleManualRefresh : undefined}
             onAddChannel={(currentView === 'dashboard' || currentView === 'channels') ? openAddModal : undefined}
             isRefreshing={isRefreshing}

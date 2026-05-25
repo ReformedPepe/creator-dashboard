@@ -1,6 +1,6 @@
 // SocialDownloaderPage — pobieranie z TikToka i X/Twittera przez Cobalt API
 import { useState, useEffect } from 'react';
-import { Download, Loader2, X as XIcon, Search, Sparkles } from 'lucide-react';
+import { Download, Loader2, X as XIcon, Search, Sparkles, ChevronDown, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import { validateSocialUrl } from '../utils/socialUrlValidator';
@@ -39,6 +39,8 @@ export default function SocialDownloaderPage() {
   const [progressPhase, setProgressPhase] = useState('idle');
   const [downloadError, setDownloadError] = useState(null);
   const [lastTimings, setLastTimings] = useState(null);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [openFaqId, setOpenFaqId] = useState(null);
 
   // Debounced URL validation
   useEffect(() => {
@@ -194,8 +196,15 @@ export default function SocialDownloaderPage() {
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-3.5 w-3.5 text-[#E53935]" />
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">
-            POBIERACZ TIKTOK & X
+            SOCIAL DOWNLOADER
           </span>
+          <button
+            onClick={() => setFaqOpen(true)}
+            className="ml-auto flex items-center justify-center h-6 w-6 rounded-full border border-[#2A2A2A] text-[#555] hover:text-white hover:border-[#444] transition-colors duration-200 cursor-pointer shrink-0"
+            title="Pomoc"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-6">
@@ -357,6 +366,62 @@ export default function SocialDownloaderPage() {
           )}
         </div>
       </section>
+
+      {/* FAQ Modal */}
+      {faqOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onClick={() => setFaqOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg rounded-[16px] border border-[#222222] bg-[#111111] p-5 md:p-6 max-h-[80vh] overflow-y-auto animate-[fadeScale_200ms_ease-out]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Często zadawane pytania</h3>
+              <button
+                onClick={() => setFaqOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1C1C1C] border border-[#2A2A2A] text-[#888] hover:text-white hover:bg-[#252525] transition-colors cursor-pointer"
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {[
+                { id: 'q1', q: 'Jak to działa?', a: <p>Wklejasz link do TikToka lub X/Twittera, a serwer Cobalt pobiera plik i przesyła go do Twojej przeglądarki.</p> },
+                { id: 'q2', q: 'Czy TikTok jest bez znaku wodnego?', a: <p>Tak — Cobalt domyślnie pobiera wersję bez watermarku TikToka.</p> },
+                { id: 'q3', q: 'Jakie linki są obsługiwane?', a: (
+                  <ul className="ml-4 list-disc space-y-1">
+                    <li>TikTok: tiktok.com/@user/video/..., vm.tiktok.com/...</li>
+                    <li>X / Twitter: x.com/user/status/..., twitter.com/user/status/...</li>
+                  </ul>
+                )},
+                { id: 'q4', q: 'Jaki jest limit pobrań?', a: <p>10 pobrań na godzinę per użytkownik. Limit resetuje się automatycznie.</p> },
+                { id: 'q5', q: 'Czy mogę pobrać audio (MP3)?', a: <p>Tak — wybierz format MP3 przed kliknięciem "Pobierz". Cobalt wyciągnie ścieżkę audio z filmu.</p> },
+              ].map((item) => {
+                const isOpen = openFaqId === item.id;
+                return (
+                  <div key={item.id} className="rounded-lg border border-[#1E1E1E] bg-[#0A0A0A]">
+                    <button
+                      onClick={() => setOpenFaqId(isOpen ? null : item.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left text-sm text-white hover:bg-[#141414] transition-colors duration-200 cursor-pointer"
+                    >
+                      <span className="font-medium">{item.q}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#555] shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div
+                      className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                      style={{ gridTemplateRows: isOpen ? '1fr' : '0fr' }}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="px-4 pb-3 pt-1 text-xs text-[#888] space-y-1.5">{item.a}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

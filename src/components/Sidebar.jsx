@@ -15,10 +15,10 @@ const USER_PL = 'pl-[16px]';
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'channels', label: 'Kanały', icon: Radio },
-  { id: 'youtube-downloader', label: 'Pobieracz YT', icon: Download, section: 'tools' },
-  { id: 'social-downloader', label: 'Pobieracz TT/X', icon: Sparkles, section: 'tools' },
+  { id: 'youtube-downloader', label: 'YouTube Downloader', icon: Download, section: 'tools' },
+  { id: 'social-downloader', label: 'Social Downloader', icon: Sparkles, section: 'tools' },
   { id: 'transcript', label: 'Transkrypcja', icon: FileText, section: 'tools' },
-  { id: 'silence-remover', label: 'Uciszacz audio', icon: Scissors, section: 'tools' },
+  { id: 'silence-remover', label: 'Silence Remover', icon: Scissors, section: 'tools' },
   { id: 'settings', label: 'Ustawienia', icon: Settings },
 ];
 

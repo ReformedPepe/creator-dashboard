@@ -1,6 +1,6 @@
 // YouTubeDownloaderPage — pobieranie filmów i audio z YouTube
 import { useState, useEffect } from 'react';
-import { Download, Loader2, X, Search, Clock, Eye } from 'lucide-react';
+import { Download, Loader2, X, Search, Clock, Eye, Globe, ChevronDown, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../lib/supabase';
 import { validateYouTubeUrl } from '../utils/youtubeUrlValidator';
@@ -52,7 +52,9 @@ export default function YouTubeDownloaderPage() {
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState('idle'); // 'idle' | 'preparing' | 'extracting' | 'server-download' | 'merging' | 'transferring' | 'done'
   const [downloadError, setDownloadError] = useState(null);
-  const [lastTimings, setLastTimings] = useState(null); // { totalMs, phases: {extracting, downloading, merging, transferring} }
+  const [lastTimings, setLastTimings] = useState(null);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [openFaqId, setOpenFaqId] = useState(null);
 
   // Debounced URL validation (300ms)
   useEffect(() => {
@@ -341,10 +343,18 @@ export default function YouTubeDownloaderPage() {
     <div className="space-y-6">
       <section>
         {/* Header */}
-        <div className="mb-3">
+        <div className="mb-3 flex items-center gap-2">
+          <Globe className="h-3.5 w-3.5 text-[#E53935]" />
           <span className="text-xs font-semibold tracking-widest uppercase text-[#52525B]">
             NARZĘDZIE ONLINE
           </span>
+          <button
+            onClick={() => setFaqOpen(true)}
+            className="ml-auto flex items-center justify-center h-6 w-6 rounded-full border border-[#2A2A2A] text-[#555] hover:text-white hover:border-[#444] transition-colors duration-200 cursor-pointer shrink-0"
+            title="Pomoc"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div className="rounded-[12px] border border-[#1E1E1E] bg-[#111111] p-4 md:p-5 space-y-6">
@@ -592,6 +602,57 @@ export default function YouTubeDownloaderPage() {
           )}
         </div>
       </section>
+
+      {/* FAQ Modal */}
+      {faqOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onClick={() => setFaqOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg rounded-[16px] border border-[#222222] bg-[#111111] p-5 md:p-6 max-h-[80vh] overflow-y-auto animate-[fadeScale_200ms_ease-out]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Często zadawane pytania</h3>
+              <button
+                onClick={() => setFaqOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1C1C1C] border border-[#2A2A2A] text-[#888] hover:text-white hover:bg-[#252525] transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {[
+                { id: 'q1', q: 'Jak to działa?', a: <p>Wklejasz link do filmu YouTube, wybierasz jakość i format, a serwer pobiera plik za Ciebie i przesyła do przeglądarki.</p> },
+                { id: 'q2', q: 'Dlaczego pobieranie trwa długo?', a: <p>Serwer najpierw pobiera film z YouTube (~10-20s), potem przesyła go do Ciebie. Przy dużych plikach (1080p, długie filmy) transfer może trwać minutę lub dłużej.</p> },
+                { id: 'q3', q: 'Jaki jest limit pobrań?', a: <p>10 pobrań na godzinę per użytkownik. Limit resetuje się automatycznie.</p> },
+                { id: 'q4', q: 'Dlaczego 720p jest szybsze niż 1080p?', a: <p>720p używa trybu streamingu (bajty lecą do Ciebie równolegle z pobieraniem z YouTube). 1080p wymaga scalenia video+audio na serwerze przed wysłaniem.</p> },
+                { id: 'q5', q: 'Czy mogę pobrać Shorts?', a: <p>Tak — wklej link do Shorts (youtube.com/shorts/...) jak każdy inny film.</p> },
+              ].map((item) => {
+                const isOpen = openFaqId === item.id;
+                return (
+                  <div key={item.id} className="rounded-lg border border-[#1E1E1E] bg-[#0A0A0A]">
+                    <button
+                      onClick={() => setOpenFaqId(isOpen ? null : item.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left text-sm text-white hover:bg-[#141414] transition-colors duration-200 cursor-pointer"
+                    >
+                      <span className="font-medium">{item.q}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#555] shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div
+                      className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                      style={{ gridTemplateRows: isOpen ? '1fr' : '0fr' }}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="px-4 pb-3 pt-1 text-xs text-[#888] space-y-1.5">{item.a}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
