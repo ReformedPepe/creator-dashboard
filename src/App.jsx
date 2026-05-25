@@ -11,6 +11,7 @@ import SettingsPage from './components/SettingsPage';
 import TranscriptPage from './components/TranscriptPage';
 import SilenceRemoverPage from './components/SilenceRemoverPage';
 import YouTubeDownloaderPage from './components/YouTubeDownloaderPage';
+import YouTubeDownloaderCobaltPage from './components/YouTubeDownloaderCobaltPage';
 import LandingPage from './components/LandingPage';
 import { useBackend } from './hooks/useBackend';
 import { useAuth } from './hooks/useAuth';
@@ -278,7 +279,7 @@ export default function App() {
         <div className="dotted-bg min-h-screen p-4 md:p-6">
           {/* Topbar — always rendered first, same position regardless of view */}
           <Topbar
-            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : currentView === 'youtube-downloader' ? 'Pobieracz YouTube' : currentView === 'transcript' ? 'Transkrypcja' : currentView === 'silence-remover' ? 'Uciszacz audio' : 'Ustawienia'}
+            title={currentView === 'dashboard' ? 'Dashboard' : currentView === 'channels' ? 'Kanały' : currentView === 'youtube-downloader' ? 'Pobieracz YouTube' : currentView === 'youtube-downloader-cobalt' ? 'Pobieracz YouTube v2' : currentView === 'transcript' ? 'Transkrypcja' : currentView === 'silence-remover' ? 'Uciszacz audio' : 'Ustawienia'}
             onRefresh={(currentView === 'dashboard' || currentView === 'channels') ? handleManualRefresh : undefined}
             onAddChannel={(currentView === 'dashboard' || currentView === 'channels') ? openAddModal : undefined}
             isRefreshing={isRefreshing}
@@ -347,6 +348,10 @@ export default function App() {
 
           {currentView === 'youtube-downloader' && (
             <YouTubeDownloaderPage />
+          )}
+
+          {currentView === 'youtube-downloader-cobalt' && (
+            <YouTubeDownloaderCobaltPage />
           )}
         </div>
       </main>

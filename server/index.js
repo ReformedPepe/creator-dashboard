@@ -8,6 +8,7 @@ const videoRoutes = require('./routes/videos');
 const refreshRoutes = require('./routes/refresh');
 const settingsRoutes = require('./routes/settings');
 const youtubeDownloadRoute = require('./routes/youtube-download');
+const cobaltDownloadRoute = require('./routes/cobalt-download');
 const { downloadRateLimiter } = require('./middleware/downloadRateLimiter');
 const { collectAll, collectYouTube, collectTikTok } = require('./cron/collector');
 const { discoverNewVideos } = require('./cron/videoDiscovery');
@@ -45,6 +46,7 @@ app.use('/api/channels', videoRoutes);
 app.use('/api', refreshRoutes);
 app.use('/api', settingsRoutes);
 app.use('/api/tools', requireAuth, downloadRateLimiter, youtubeDownloadRoute);
+app.use('/api/tools', requireAuth, downloadRateLimiter, cobaltDownloadRoute);
 
 // Schedule YouTube collection every hour (0 * * * *)
 cron.schedule('0 * * * *', () => {
