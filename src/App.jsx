@@ -62,6 +62,15 @@ export default function App() {
   // Global download state for toast (reported by downloader pages)
   const [activeDownload, setActiveDownload] = useState(null);
 
+  // Stable callbacks tagging payload with source — used as props to keep referential
+  // identity stable (prevents render loops when child useEffect depends on this callback).
+  const reportYoutubeDownload = useCallback((payload) => {
+    setActiveDownload(payload ? { ...payload, source: 'youtube-downloader' } : null);
+  }, []);
+  const reportSocialDownload = useCallback((payload) => {
+    setActiveDownload(payload ? { ...payload, source: 'social-downloader' } : null);
+  }, []);
+
   const youtubeChannels = channels.filter(ch => ch.type === 'youtube');
   const tiktokChannels = channels.filter(ch => ch.type === 'tiktok');
 
@@ -352,19 +361,11 @@ export default function App() {
 
           {/* Downloaders: keep-alive (not unmounted) so downloads continue in background */}
           <div style={{ display: currentView === 'youtube-downloader' ? 'block' : 'none' }}>
-            <YouTubeDownloaderPage
-              onDownloadStateChange={(payload) =>
-                setActiveDownload(payload ? { ...payload, source: 'youtube-downloader' } : null)
-              }
-            />
+            <YouTubeDownloaderPage onDownloadStateChange={reportYoutubeDownload} />
           </div>
 
           <div style={{ display: currentView === 'social-downloader' ? 'block' : 'none' }}>
-            <SocialDownloaderPage
-              onDownloadStateChange={(payload) =>
-                setActiveDownload(payload ? { ...payload, source: 'social-downloader' } : null)
-              }
-            />
+            <SocialDownloaderPage onDownloadStateChange={reportSocialDownload} />
           </div>
         </div>
       </main>
